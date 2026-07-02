@@ -18,6 +18,7 @@ add_library(${PROJECT_NAME}
   src/force_torque_filter.cpp
   src/tool_gravity_compensator.cpp
   src/compliance_law.cpp
+  src/safety_limiter.cpp
 )
 
 if(CATKIN_ENABLE_TESTING)
@@ -35,4 +36,7 @@ if(CATKIN_ENABLE_TESTING)
 
   catkin_add_gtest(test_compliance_law test/test_compliance_law.cpp)
   target_link_libraries(test_compliance_law ${PROJECT_NAME} ${GTEST_MAIN_LIBRARIES})
+
+  catkin_add_gtest(test_safety_limiter test/test_safety_limiter.cpp)
+  target_link_libraries(test_safety_limiter ${PROJECT_NAME} ${GTEST_MAIN_LIBRARIES})
 endif()
