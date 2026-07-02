@@ -15,9 +15,13 @@ include_directories(include ${EIGEN3_INCLUDE_DIRS})
 
 add_library(${PROJECT_NAME}
   src/mode_manager_core.cpp
+  src/force_torque_filter.cpp
 )
 
 if(CATKIN_ENABLE_TESTING)
   catkin_add_gtest(test_mode_manager test/test_mode_manager.cpp)
   target_link_libraries(test_mode_manager ${PROJECT_NAME} ${GTEST_MAIN_LIBRARIES})
+
+  catkin_add_gtest(test_filter test/test_filter.cpp)
+  target_link_libraries(test_filter ${PROJECT_NAME} ${GTEST_MAIN_LIBRARIES})
 endif()
