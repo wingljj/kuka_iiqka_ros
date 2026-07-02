@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>soft_force_control_core</name>
+  <version>0.1.0</version>
+  <description>
+    Pure C++ force-compliance algorithm library. No ROS runtime dependency.
+    Reimplements the legacy SoftRobot SoftControl/LoadMass behavior in
+    deterministic, unit-testable form.
+  </description>
+  <maintainer email="dev@example.com">ljj</maintainer>
+  <license>Proprietary</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>eigen</depend>
+</package>
