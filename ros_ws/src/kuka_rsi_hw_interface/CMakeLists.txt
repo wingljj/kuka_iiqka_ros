@@ -49,4 +49,8 @@ if(CATKIN_ENABLE_TESTING)
   catkin_add_gtest(test_udp_transport test/test_udp_transport.cpp)
   target_link_libraries(test_udp_transport kuka_rsi_protocol
                         ${GTEST_MAIN_LIBRARIES})
+
+  catkin_add_gtest(test_cartesian_interfaces test/test_cartesian_interfaces.cpp)
+  target_link_libraries(test_cartesian_interfaces ${catkin_LIBRARIES}
+                        ${GTEST_MAIN_LIBRARIES})
 endif()
