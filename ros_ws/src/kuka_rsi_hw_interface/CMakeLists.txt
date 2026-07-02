@@ -26,6 +26,7 @@ add_library(kuka_rsi_protocol
   src/rsi_frame.cpp
   src/rsi_session_monitor.cpp
   src/command_limiter.cpp
+  src/udp_transport.cpp
 )
 target_link_libraries(kuka_rsi_protocol ${TINYXML2_LIBRARIES})
 
@@ -43,5 +44,9 @@ if(CATKIN_ENABLE_TESTING)
                         ${GTEST_MAIN_LIBRARIES})
   catkin_add_gtest(test_command_limiter test/test_command_limiter.cpp)
   target_link_libraries(test_command_limiter kuka_rsi_protocol
+                        ${GTEST_MAIN_LIBRARIES})
+
+  catkin_add_gtest(test_udp_transport test/test_udp_transport.cpp)
+  target_link_libraries(test_udp_transport kuka_rsi_protocol
                         ${GTEST_MAIN_LIBRARIES})
 endif()
