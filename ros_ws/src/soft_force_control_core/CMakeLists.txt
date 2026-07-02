@@ -16,6 +16,7 @@ include_directories(include ${EIGEN3_INCLUDE_DIRS})
 add_library(${PROJECT_NAME}
   src/mode_manager_core.cpp
   src/force_torque_filter.cpp
+  src/tool_gravity_compensator.cpp
 )
 
 if(CATKIN_ENABLE_TESTING)
@@ -27,4 +28,7 @@ if(CATKIN_ENABLE_TESTING)
 
   catkin_add_gtest(test_rotation test/test_rotation.cpp)
   target_link_libraries(test_rotation ${PROJECT_NAME} ${GTEST_MAIN_LIBRARIES})
+
+  catkin_add_gtest(test_gravity_compensator test/test_gravity_compensator.cpp)
+  target_link_libraries(test_gravity_compensator ${PROJECT_NAME} ${GTEST_MAIN_LIBRARIES})
 endif()
