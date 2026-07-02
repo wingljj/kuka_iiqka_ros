@@ -24,4 +24,7 @@ if(CATKIN_ENABLE_TESTING)
 
   catkin_add_gtest(test_filter test/test_filter.cpp)
   target_link_libraries(test_filter ${PROJECT_NAME} ${GTEST_MAIN_LIBRARIES})
+
+  catkin_add_gtest(test_rotation test/test_rotation.cpp)
+  target_link_libraries(test_rotation ${PROJECT_NAME} ${GTEST_MAIN_LIBRARIES})
 endif()
