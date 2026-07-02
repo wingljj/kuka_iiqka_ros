@@ -30,6 +30,12 @@ add_library(kuka_rsi_protocol
 )
 target_link_libraries(kuka_rsi_protocol ${TINYXML2_LIBRARIES})
 
+add_library(kuka_rsi_hw_interface_mock
+  src/rsi_mock_core.cpp
+  src/rsi_mock_server.cpp
+)
+target_link_libraries(kuka_rsi_hw_interface_mock kuka_rsi_protocol pthread)
+
 if(CATKIN_ENABLE_TESTING)
   catkin_add_gtest(test_rsi_frame_parse test/test_rsi_frame_parse.cpp)
   target_link_libraries(test_rsi_frame_parse kuka_rsi_protocol
@@ -52,5 +58,9 @@ if(CATKIN_ENABLE_TESTING)
 
   catkin_add_gtest(test_cartesian_interfaces test/test_cartesian_interfaces.cpp)
   target_link_libraries(test_cartesian_interfaces ${catkin_LIBRARIES}
+                        ${GTEST_MAIN_LIBRARIES})
+
+  catkin_add_gtest(test_rsi_mock test/test_rsi_mock.cpp)
+  target_link_libraries(test_rsi_mock kuka_rsi_hw_interface_mock
                         ${GTEST_MAIN_LIBRARIES})
 endif()
