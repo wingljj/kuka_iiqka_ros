@@ -67,4 +67,21 @@ bool parseRobFrame(const char* data, std::size_t len, RobFrame& out) {
   return true;
 }
 
+std::size_t serializeSenFrame(const SenFrame& frame, char* buf,
+                              std::size_t buf_size) {
+  const int n = std::snprintf(
+      buf, buf_size,
+      "<Sen Type=\"ROS\">"
+      "<RKorr X=\"%.4f\" Y=\"%.4f\" Z=\"%.4f\" A=\"%.4f\" B=\"%.4f\" "
+      "C=\"%.4f\"/>"
+      "<Stop S=\"%d\"/>"
+      "<Watchdog W=\"%" PRIu64 "\"/>"
+      "<IPOC>%" PRIu64 "</IPOC>"
+      "</Sen>",
+      frame.x, frame.y, frame.z, frame.a, frame.b, frame.c, frame.stop,
+      frame.watchdog, frame.ipoc);
+  if (n <= 0 || static_cast<std::size_t>(n) >= buf_size) return 0;
+  return static_cast<std::size_t>(n);
+}
+
 }  // namespace kuka_rsi
