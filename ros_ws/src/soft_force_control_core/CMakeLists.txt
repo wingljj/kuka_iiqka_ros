@@ -22,6 +22,7 @@ add_library(${PROJECT_NAME}
   src/adaptive_deadband.cpp
   src/auto_retare.cpp
   src/orientation_motion_core.cpp
+  src/payload_estimator.cpp
 )
 
 if(CATKIN_ENABLE_TESTING)
@@ -51,4 +52,7 @@ if(CATKIN_ENABLE_TESTING)
 
   catkin_add_gtest(test_orientation_motion test/test_orientation_motion.cpp)
   target_link_libraries(test_orientation_motion ${PROJECT_NAME} ${GTEST_MAIN_LIBRARIES})
+
+  catkin_add_gtest(test_payload_estimator test/test_payload_estimator.cpp)
+  target_link_libraries(test_payload_estimator ${PROJECT_NAME} ${GTEST_MAIN_LIBRARIES})
 endif()
