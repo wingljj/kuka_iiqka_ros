@@ -1,0 +1,21 @@
+# Goal-mode orientation motion (spec section 7.6). Executed by
+# CartesianCorrectionController hosting OrientationMotionCore.
+# Units: deg for a/b/c, mm for x/y/z. speed_scale in (0, 1].
+float64 a
+float64 b
+float64 c
+bool use_position
+float64 x
+float64 y
+float64 z
+float64 speed_scale
+---
+uint8 CONVERGED=0
+uint8 TIMEOUT=1
+uint8 ABORTED=2
+uint8 result_code
+string message
+---
+float64 error_deg
+float64 error_mm
+float64 progress
