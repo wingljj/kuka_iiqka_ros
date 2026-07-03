@@ -30,6 +30,7 @@ include_directories(include ${catkin_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS})
 add_library(${PROJECT_NAME}
   src/controller_mode_gate.cpp
   src/force_compliance_core.cpp
+  src/direct_correction_core.cpp
 )
 add_dependencies(${PROJECT_NAME} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES})
@@ -53,5 +54,9 @@ if(CATKIN_ENABLE_TESTING)
 
   catkin_add_gtest(test_fcc_orientation_sum test/test_fcc_orientation_sum.cpp)
   target_link_libraries(test_fcc_orientation_sum ${PROJECT_NAME}
+                        ${GTEST_MAIN_LIBRARIES})
+
+  catkin_add_gtest(test_direct_correction_core test/test_direct_correction_core.cpp)
+  target_link_libraries(test_direct_correction_core ${PROJECT_NAME}
                         ${GTEST_MAIN_LIBRARIES})
 endif()
