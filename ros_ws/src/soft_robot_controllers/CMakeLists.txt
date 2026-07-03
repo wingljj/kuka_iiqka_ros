@@ -50,4 +50,8 @@ if(CATKIN_ENABLE_TESTING)
   catkin_add_gtest(test_fcc_adaptive_retare test/test_fcc_adaptive_retare.cpp)
   target_link_libraries(test_fcc_adaptive_retare ${PROJECT_NAME}
                         ${GTEST_MAIN_LIBRARIES})
+
+  catkin_add_gtest(test_fcc_orientation_sum test/test_fcc_orientation_sum.cpp)
+  target_link_libraries(test_fcc_orientation_sum ${PROJECT_NAME}
+                        ${GTEST_MAIN_LIBRARIES})
 endif()
