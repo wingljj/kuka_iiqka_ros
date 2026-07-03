@@ -31,6 +31,7 @@ add_library(${PROJECT_NAME}
   src/controller_mode_gate.cpp
   src/force_compliance_core.cpp
   src/direct_correction_core.cpp
+  src/force_compliance_controller.cpp
 )
 add_dependencies(${PROJECT_NAME} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES})
@@ -59,4 +60,9 @@ if(CATKIN_ENABLE_TESTING)
   catkin_add_gtest(test_direct_correction_core test/test_direct_correction_core.cpp)
   target_link_libraries(test_direct_correction_core ${PROJECT_NAME}
                         ${GTEST_MAIN_LIBRARIES})
+
+  catkin_add_gtest(test_force_compliance_controller
+                   test/test_force_compliance_controller.cpp)
+  target_link_libraries(test_force_compliance_controller ${PROJECT_NAME}
+                        ${catkin_LIBRARIES} ${GTEST_MAIN_LIBRARIES})
 endif()
