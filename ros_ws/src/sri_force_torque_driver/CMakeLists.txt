@@ -24,6 +24,7 @@ add_library(sri_ft_protocol
   src/sri_frame.cpp
   src/tcp_client_transport.cpp
   src/sri_stream_session.cpp
+  src/sri_driver_runtime.cpp
 )
 target_link_libraries(sri_ft_protocol ${catkin_LIBRARIES})
 
@@ -35,6 +36,17 @@ target_link_libraries(sri_ft_mock sri_ft_protocol pthread)
 
 add_executable(sri_mock_server src/sri_mock_server_main.cpp)
 target_link_libraries(sri_mock_server sri_ft_mock)
+
+add_executable(sri_driver_node src/sri_driver_node.cpp)
+add_dependencies(sri_driver_node ${catkin_EXPORTED_TARGETS})
+target_link_libraries(sri_driver_node sri_ft_protocol ${catkin_LIBRARIES})
+
+install(TARGETS sri_mock_server sri_driver_node
+        RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+install(DIRECTORY include/${PROJECT_NAME}/
+        DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION})
+install(DIRECTORY config
+        DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
 
 if(CATKIN_ENABLE_TESTING)
   catkin_add_gtest(test_sri_frame test/test_sri_frame.cpp)
@@ -51,4 +63,8 @@ if(CATKIN_ENABLE_TESTING)
   catkin_add_gtest(test_sri_mock_server test/test_sri_mock_server.cpp)
   target_link_libraries(test_sri_mock_server sri_ft_mock
                         ${GTEST_MAIN_LIBRARIES})
+
+  catkin_add_gtest(test_sri_driver_runtime test/test_sri_driver_runtime.cpp)
+  target_link_libraries(test_sri_driver_runtime sri_ft_protocol sri_ft_mock
+                        ${catkin_LIBRARIES} ${GTEST_MAIN_LIBRARIES})
 endif()

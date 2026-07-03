@@ -1,0 +1,15 @@
+# SRI force/torque sensor driver parameters (spec section 14, sri_ft.yaml).
+# Loaded into the sri_ft_driver private namespace by the Plan 5 bringup.
+sri_ft_driver:
+  sensor_ip: 192.168.1.1        # legacy Parameter.xml FTIP
+  sensor_port: 4008             # M8128-style box TCP port (decision 1)
+  frame_id: sri_ft_link
+  nominal_rate_hz: 250.0        # box stream rate; >= 1 sample per RSI cycle
+  sample_timeout_s: 0.1         # streaming -> stalled threshold for /sri_ft/status
+  zero_sample_count: 100        # samples averaged per /sri_ft/zero call
+  zero_timeout_ms: 3000         # bounded wait for a tare capture
+  filter_cutoff_hz: 0.0         # 0 = raw passthrough; controller owns filtering (spec 8)
+  bias_limit_n: 120.0           # legacy FTBia: reject taring under load (decision 4)
+  connect_timeout_ms: 1000
+  receive_timeout_ms: 50
+  reconnect_backoff_s: 0.5
