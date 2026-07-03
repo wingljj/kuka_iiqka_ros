@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>soft_robot_controllers</name>
+  <version>0.1.0</version>
+  <description>
+    ros_control controller plugins for the KUKA RSI soft force control
+    system (spec sections 5.3, 7, 10, 12.1): ForceComplianceController
+    (admittance pipeline over the SRI wrench) and
+    CartesianCorrectionController (stream passthrough + RKorr goal mode
+    hosting OrientationMotionCore). Pure-logic cores are ROS-free and
+    fully covered by offline gtests.
+  </description>
+  <maintainer email="dev@example.com">ljj</maintainer>
+  <license>Proprietary</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>roscpp</depend>
+  <depend>controller_interface</depend>
+  <depend>hardware_interface</depend>
+  <depend>realtime_tools</depend>
+  <depend>actionlib</depend>
+  <depend>pluginlib</depend>
+  <depend>geometry_msgs</depend>
+  <depend>soft_force_control_core</depend>
+  <depend>kuka_rsi_hw_interface</depend>
+  <depend>soft_robot_msgs</depend>
+  <export>
+    <controller_interface plugin="${prefix}/soft_robot_controllers_plugins.xml"/>
+  </export>
+</package>
