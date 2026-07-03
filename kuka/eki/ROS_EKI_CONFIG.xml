@@ -1,0 +1,64 @@
+<ETHERNETKRL>
+  <!-- EKI channel config for the ROS management link (EthernetKRL 6.1).
+       GENERATED FROM ros_ws/src/kuka_eki_bridge/include/kuka_eki_bridge/
+       eki_frame.h - the single source of truth for this schema (Plan 4
+       decision 6). Field-by-field checklist:
+       docs/kuka_iiqka_rsi_eki_setup.md section 3. -->
+  <CONFIGURATION>
+    <EXTERNAL>
+      <!-- The external system (ROS bridge) connects as TCP client
+           (Plan 4 decision 5). -->
+      <TYPE>Client</TYPE>
+    </EXTERNAL>
+    <INTERNAL>
+      <ENVIRONMENT>Program</ENVIRONMENT>
+      <BUFFERING Mode="FIFO" Limit="16"/>
+      <ALIVE Set_Flag="1"/>
+      <IP>0.0.0.0</IP>
+      <PORT>54600</PORT>
+      <PROTOCOL>TCP</PROTOCOL>
+    </INTERNAL>
+  </CONFIGURATION>
+  <RECEIVE>
+    <!-- ROS -> KRC: RobotCommand (eki_frame.h serializeCommand).
+         Every command carries all elements; unused ones are zero. -->
+    <XML>
+      <ELEMENT Tag="RobotCommand/Cmd" Attribute="Seq"    Type="INT"/>
+      <ELEMENT Tag="RobotCommand/Cmd" Attribute="Action" Type="INT"/>
+      <ELEMENT Tag="RobotCommand/Cmd" Attribute="Value"  Type="INT"/>
+      <ELEMENT Tag="RobotCommand/Tool" Attribute="X" Type="REAL"/>
+      <ELEMENT Tag="RobotCommand/Tool" Attribute="Y" Type="REAL"/>
+      <ELEMENT Tag="RobotCommand/Tool" Attribute="Z" Type="REAL"/>
+      <ELEMENT Tag="RobotCommand/Tool" Attribute="A" Type="REAL"/>
+      <ELEMENT Tag="RobotCommand/Tool" Attribute="B" Type="REAL"/>
+      <ELEMENT Tag="RobotCommand/Tool" Attribute="C" Type="REAL"/>
+      <ELEMENT Tag="RobotCommand/Base" Attribute="X" Type="REAL"/>
+      <ELEMENT Tag="RobotCommand/Base" Attribute="Y" Type="REAL"/>
+      <ELEMENT Tag="RobotCommand/Base" Attribute="Z" Type="REAL"/>
+      <ELEMENT Tag="RobotCommand/Base" Attribute="A" Type="REAL"/>
+      <ELEMENT Tag="RobotCommand/Base" Attribute="B" Type="REAL"/>
+      <ELEMENT Tag="RobotCommand/Base" Attribute="C" Type="REAL"/>
+    </XML>
+  </RECEIVE>
+  <SEND>
+    <!-- KRC -> ROS: RobotState (eki_frame.h parseState). Ack.Seq=0 marks
+         the unsolicited 100 ms heartbeat (Plan 4 decision 7). All three
+         elements and every attribute are mandatory: the ROS parser
+         rejects the frame otherwise. -->
+    <XML>
+      <ELEMENT Tag="RobotState/Ack"  Attribute="Seq"       Type="INT"/>
+      <ELEMENT Tag="RobotState/Ack"  Attribute="Ok"        Type="INT"/>
+      <ELEMENT Tag="RobotState/Ack"  Attribute="Code"      Type="INT"/>
+      <ELEMENT Tag="RobotState/Prog" Attribute="Ready"     Type="INT"/>
+      <ELEMENT Tag="RobotState/Prog" Attribute="RsiActive" Type="INT"/>
+      <ELEMENT Tag="RobotState/Prog" Attribute="Fault"     Type="INT"/>
+      <ELEMENT Tag="RobotState/Prog" Attribute="Mode"      Type="INT"/>
+      <ELEMENT Tag="RobotState/Tool" Attribute="X" Type="REAL"/>
+      <ELEMENT Tag="RobotState/Tool" Attribute="Y" Type="REAL"/>
+      <ELEMENT Tag="RobotState/Tool" Attribute="Z" Type="REAL"/>
+      <ELEMENT Tag="RobotState/Tool" Attribute="A" Type="REAL"/>
+      <ELEMENT Tag="RobotState/Tool" Attribute="B" Type="REAL"/>
+      <ELEMENT Tag="RobotState/Tool" Attribute="C" Type="REAL"/>
+    </XML>
+  </SEND>
+</ETHERNETKRL>

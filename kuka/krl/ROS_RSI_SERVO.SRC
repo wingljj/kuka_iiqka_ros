@@ -1,0 +1,123 @@
+&ACCESS RVP
+&REL 1
+DEF ROS_RSI_SERVO()
+  ; ROS soft-robot servo program (spec 6.3) for iiQKA.OS2 9.2+ with
+  ; RobotSensorInterface 6.2 and EthernetKRL 6.1. TEMPLATE: verify every
+  ; function signature against the local manuals before deployment
+  ; (docs/kuka_iiqka_rsi_eki_setup.md section 2).
+  ;
+  ; Action codes / XML schema mirror kuka_eki_bridge/eki_frame.h:
+  ;   0 QUERY_STATE  1 START_RSI  2 STOP_RSI  3 SET_MODE
+  ;   4 RESET_FAULT  5 GET_TOOL   6 SET_TOOL_BASE
+  ; Error codes: 0 OK, 1 NOT_READY, 2 FAULTED.
+
+  DECL INT nSeq, nAction, nValue
+  DECL REAL rHbTimer
+
+  ; -- 1. select configured tool/base ------------------------------------
+  $TOOL = TOOL_DATA[ROS_TOOL_NO]
+  $BASE = BASE_DATA[ROS_BASE_NO]
+
+  ; -- 2. open the EKI management channel --------------------------------
+  RET = EKI_Load("ROS_EKI_CONFIG")
+  RET = EKI_Open("ROS_EKI_CONFIG")
+  bReady = TRUE
+  bRsiActive = FALSE
+  bFault = FALSE
+  nMode = 0
+
+  ; -- 3. main loop: answer commands, push the 100 ms heartbeat ----------
+  ; HEARTBEAT OBLIGATION (Plan 4 risk 8): without the periodic push the
+  ; ROS bridge reports "state heartbeat stale" (WARN) and the manager
+  ; never leaves OFFLINE. Period 100 ms = 10x margin vs the 1 s bridge
+  ; freshness threshold.
+  rHbTimer = 0.0
+  LOOP
+    ; --- command path (non-blocking check) ---
+    IF EKI_CheckBuffer("ROS_EKI_CONFIG", "RobotCommand/Cmd") > 0 THEN
+      RET = EKI_ReadNext("ROS_EKI_CONFIG")
+      RET = EKI_GetInt("ROS_EKI_CONFIG", "RobotCommand/Cmd@Seq", nSeq)
+      RET = EKI_GetInt("ROS_EKI_CONFIG", "RobotCommand/Cmd@Action", nAction)
+      RET = EKI_GetInt("ROS_EKI_CONFIG", "RobotCommand/Cmd@Value", nValue)
+      SWITCH nAction
+        CASE 0  ; QUERY_STATE: ack with the current state, no side effect
+          ROS_SEND_STATE(nSeq, 1, 0)
+        CASE 1  ; START_RSI
+          IF bFault THEN
+            ROS_SEND_STATE(nSeq, 0, 2)   ; FAULTED
+          ELSE
+            RET = RSI_LOAD("ROS_RSI_CONTEXT")
+            RET = RSI_ACTIVATE()
+            ; Relative Cartesian correction in the configured frame
+            ; (spec 6.1: PosCorr, BASE by default).
+            RET = RSI_PROCESS_ON(#ABSOLUTE_OFF)
+            bRsiActive = TRUE
+            ROS_SEND_STATE(nSeq, 1, 0)
+            RSI_MOVECORR()               ; sensor-guided motion (blocks)
+            bRsiActive = FALSE
+          ENDIF
+        CASE 2  ; STOP_RSI
+          RET = RSI_PROCESS_OFF()
+          RET = RSI_DEACTIVATE()
+          RET = RSI_UNLOAD()
+          bRsiActive = FALSE
+          ROS_SEND_STATE(nSeq, 1, 0)
+        CASE 3  ; SET_MODE: opaque to the KRC, stored and echoed
+          nMode = nValue
+          ROS_SEND_STATE(nSeq, 1, 0)
+        CASE 4  ; RESET_FAULT: clear the program-level fault latch
+          bFault = FALSE
+          ROS_SEND_STATE(nSeq, 1, 0)
+        CASE 5  ; GET_TOOL: current $TOOL is packed by ROS_SEND_STATE
+          ROS_SEND_STATE(nSeq, 1, 0)
+        CASE 6  ; SET_TOOL_BASE: read Tool/Base elements, apply
+          ROS_READ_TOOL_BASE()
+          ROS_SEND_STATE(nSeq, 1, 0)
+        DEFAULT
+          ROS_SEND_STATE(nSeq, 0, 1)     ; NOT_READY / unknown action
+      ENDSWITCH
+    ENDIF
+    ; --- heartbeat path ---
+    IF $TIMER[ROS_HB_TIMER_NO] > 100 THEN   ; ms
+      $TIMER[ROS_HB_TIMER_NO] = 0
+      ROS_SEND_STATE(0, 1, 0)               ; Ack.Seq=0 = heartbeat
+    ENDIF
+    WAIT SEC 0.01
+  ENDLOOP
+END
+
+DEF ROS_SEND_STATE(nAckSeq :IN, nOk :IN, nCode :IN)
+  DECL INT nAckSeq, nOk, nCode
+  ; Every RobotState carries all three elements with all attributes
+  ; (eki_frame.h parseState treats anything less as a bad frame).
+  RET = EKI_SetInt("ROS_EKI_CONFIG", "RobotState/Ack@Seq", nAckSeq)
+  RET = EKI_SetInt("ROS_EKI_CONFIG", "RobotState/Ack@Ok", nOk)
+  RET = EKI_SetInt("ROS_EKI_CONFIG", "RobotState/Ack@Code", nCode)
+  RET = EKI_SetInt("ROS_EKI_CONFIG", "RobotState/Prog@Ready", B_TO_I(bReady))
+  RET = EKI_SetInt("ROS_EKI_CONFIG", "RobotState/Prog@RsiActive", B_TO_I(bRsiActive))
+  RET = EKI_SetInt("ROS_EKI_CONFIG", "RobotState/Prog@Fault", B_TO_I(bFault))
+  RET = EKI_SetInt("ROS_EKI_CONFIG", "RobotState/Prog@Mode", nMode)
+  RET = EKI_SetReal("ROS_EKI_CONFIG", "RobotState/Tool@X", $TOOL.X)
+  RET = EKI_SetReal("ROS_EKI_CONFIG", "RobotState/Tool@Y", $TOOL.Y)
+  RET = EKI_SetReal("ROS_EKI_CONFIG", "RobotState/Tool@Z", $TOOL.Z)
+  RET = EKI_SetReal("ROS_EKI_CONFIG", "RobotState/Tool@A", $TOOL.A)
+  RET = EKI_SetReal("ROS_EKI_CONFIG", "RobotState/Tool@B", $TOOL.B)
+  RET = EKI_SetReal("ROS_EKI_CONFIG", "RobotState/Tool@C", $TOOL.C)
+  RET = EKI_Send("ROS_EKI_CONFIG", "RobotState")
+END
+
+DEF ROS_READ_TOOL_BASE()
+  ; SET_TOOL_BASE payload -> $TOOL/$BASE (mm/deg, KUKA A/B/C).
+  RET = EKI_GetReal("ROS_EKI_CONFIG", "RobotCommand/Tool@X", $TOOL.X)
+  RET = EKI_GetReal("ROS_EKI_CONFIG", "RobotCommand/Tool@Y", $TOOL.Y)
+  RET = EKI_GetReal("ROS_EKI_CONFIG", "RobotCommand/Tool@Z", $TOOL.Z)
+  RET = EKI_GetReal("ROS_EKI_CONFIG", "RobotCommand/Tool@A", $TOOL.A)
+  RET = EKI_GetReal("ROS_EKI_CONFIG", "RobotCommand/Tool@B", $TOOL.B)
+  RET = EKI_GetReal("ROS_EKI_CONFIG", "RobotCommand/Tool@C", $TOOL.C)
+  RET = EKI_GetReal("ROS_EKI_CONFIG", "RobotCommand/Base@X", $BASE.X)
+  RET = EKI_GetReal("ROS_EKI_CONFIG", "RobotCommand/Base@Y", $BASE.Y)
+  RET = EKI_GetReal("ROS_EKI_CONFIG", "RobotCommand/Base@Z", $BASE.Z)
+  RET = EKI_GetReal("ROS_EKI_CONFIG", "RobotCommand/Base@A", $BASE.A)
+  RET = EKI_GetReal("ROS_EKI_CONFIG", "RobotCommand/Base@B", $BASE.B)
+  RET = EKI_GetReal("ROS_EKI_CONFIG", "RobotCommand/Base@C", $BASE.C)
+END

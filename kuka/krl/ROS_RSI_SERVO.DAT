@@ -1,0 +1,13 @@
+&ACCESS RVP
+&REL 1
+DEFDAT ROS_RSI_SERVO
+  ; Deployment-site constants. Adjust per cell; checklist section 2.
+  DECL INT ROS_TOOL_NO = 1        ; TOOL_DATA index used at startup
+  DECL INT ROS_BASE_NO = 0        ; BASE_DATA index (0 = $WORLD)
+  DECL INT ROS_HB_TIMER_NO = 1    ; $TIMER used for the 100 ms heartbeat
+  DECL BOOL bReady = FALSE
+  DECL BOOL bRsiActive = FALSE
+  DECL BOOL bFault = FALSE
+  DECL INT nMode = 0
+  DECL INT RET = 0
+ENDDAT

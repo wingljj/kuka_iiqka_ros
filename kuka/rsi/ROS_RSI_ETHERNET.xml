@@ -1,0 +1,36 @@
+<ROOT>
+  <!-- RSI Ethernet object config (RobotSensorInterface 6.2). GENERATED
+       FROM ros_ws/src/kuka_rsi_hw_interface/include/kuka_rsi_hw_interface/
+       rsi_frame.h (spec 6.1). The KRC is the UDP client: it sends <Rob>
+       state at the 4 ms cycle to the ROS host and expects the <Sen>
+       answer echoing IPOC within the same cycle. -->
+  <CONFIG>
+    <IP_NUMBER>192.168.1.2</IP_NUMBER>  <!-- ROS host IP: SITE-SPECIFIC -->
+    <PORT>49152</PORT>                  <!-- must match kuka_rsi.yaml listen_port -->
+    <SENTYPE>ROS</SENTYPE>              <!-- <Sen Type="ROS"> -->
+    <ONLYSEND>FALSE</ONLYSEND>
+  </CONFIG>
+  <SEND>
+    <!-- KRC -> ROS, parsed by rsi_frame.h parseRobFrame: RIst + AIPos
+         + IPOC mandatory; Delay/Mode optional. -->
+    <ELEMENTS>
+      <ELEMENT TAG="RIst"  TYPE="DOUBLE" INDX="INTERNAL" ATTRIBUTES="X Y Z A B C"/>
+      <ELEMENT TAG="AIPos" TYPE="DOUBLE" INDX="INTERNAL" ATTRIBUTES="A1 A2 A3 A4 A5 A6"/>
+      <ELEMENT TAG="Delay" TYPE="LONG"   INDX="INTERNAL" ATTRIBUTES="D"/>
+      <ELEMENT TAG="Mode"  TYPE="LONG"   INDX="INTERNAL" ATTRIBUTES="M"/>
+      <ELEMENT TAG="IPOC"  TYPE="LONG"   INDX="INTERNAL"/>
+    </ELEMENTS>
+  </SEND>
+  <RECEIVE>
+    <!-- ROS -> KRC, produced by rsi_frame.h serializeSenFrame. RKorr is
+         a per-cycle Cartesian correction consumed by a PosCorr object in
+         RELATIVE mode, coordinate system BASE (spec 6.1). The KUKA-side
+         context must clamp corrections (secondary limits live in ROS). -->
+    <ELEMENTS>
+      <ELEMENT TAG="RKorr" TYPE="DOUBLE" INDX="1 2 3 4 5 6" ATTRIBUTES="X Y Z A B C" HOLDON="1"/>
+      <ELEMENT TAG="Stop"     TYPE="BOOL" INDX="7" ATTRIBUTES="S" HOLDON="1"/>
+      <ELEMENT TAG="Watchdog" TYPE="LONG" INDX="8" ATTRIBUTES="W" HOLDON="0"/>
+      <ELEMENT TAG="IPOC"     TYPE="LONG" INDX="INTERNAL"/>
+    </ELEMENTS>
+  </RECEIVE>
+</ROOT>
