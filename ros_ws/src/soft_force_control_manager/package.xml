@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>soft_force_control_manager</name>
+  <version>0.1.0</version>
+  <description>
+    Non-realtime system manager (spec sections 5.5, 9, 11): system state
+    machine, EKI/RSI/SRI health aggregation, controller switching
+    orchestration, payload calibration workflow, payload.yaml persistence,
+    and the operator-facing service/action surface consumed by the web UI.
+  </description>
+  <maintainer email="dev@example.com">ljj</maintainer>
+  <license>Proprietary</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>roscpp</depend>
+  <depend>std_srvs</depend>
+  <depend>actionlib</depend>
+  <depend>diagnostic_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>controller_manager_msgs</depend>
+  <depend>soft_robot_msgs</depend>
+  <depend>soft_force_control_core</depend>
+</package>
