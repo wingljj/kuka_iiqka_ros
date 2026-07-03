@@ -3,6 +3,7 @@ project(soft_force_control_manager)
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp
+  roslib
   std_srvs
   actionlib
   diagnostic_msgs
@@ -16,7 +17,7 @@ find_package(Eigen3 REQUIRED)
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES soft_force_control_manager_core
-  CATKIN_DEPENDS roscpp std_srvs actionlib diagnostic_msgs geometry_msgs
+  CATKIN_DEPENDS roscpp roslib std_srvs actionlib diagnostic_msgs geometry_msgs
                  controller_manager_msgs soft_robot_msgs
                  soft_force_control_core
 )
@@ -32,6 +33,18 @@ add_library(soft_force_control_manager_core
   src/manager_runtime.cpp
 )
 target_link_libraries(soft_force_control_manager_core ${catkin_LIBRARIES})
+
+add_executable(soft_robot_manager src/manager_node.cpp)
+add_dependencies(soft_robot_manager ${catkin_EXPORTED_TARGETS})
+target_link_libraries(soft_robot_manager soft_force_control_manager_core
+                      ${catkin_LIBRARIES})
+
+install(TARGETS soft_robot_manager
+        RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+install(DIRECTORY include/${PROJECT_NAME}/
+        DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION})
+install(DIRECTORY config
+        DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
 
 if(CATKIN_ENABLE_TESTING)
   # Package-prefixed gtest target names (global CMake namespace under

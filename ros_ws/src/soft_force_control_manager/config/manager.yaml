@@ -1,0 +1,16 @@
+# Manager parameters (spec sections 5.5, 11, 14; decision 3 thresholds).
+# Loaded into the soft_robot_manager private namespace by the bringup.
+soft_robot_manager:
+  tick_period_s: 0.1
+  # /kuka/eki/state freshness. Must tolerate the eki node's single-threaded
+  # spin: a blocking command can gap the 10 Hz publisher by up to
+  # response_timeout_s + 1 s (~3 s); 5 s adds margin (Plan 4 follow-up 6).
+  eki_state_timeout_s: 5.0
+  rsi_state_timeout_s: 0.5        # 50 Hz topic; manager-side watch (Plan 3 FU-4)
+  sri_status_timeout_s: 2.0       # 10 Hz topic
+  tool_sync_retry_s: 2.0
+  rsi_connect_wait_s: 5.0         # bounded wait for RSI frames on start
+  compliance_controller: force_compliance_controller
+  correction_controller: cartesian_correction_controller
+  payload_file: ""                # "" = <bringup share>/config/payload.yaml (Task 8 sets it)
+  goal_speed_scale: 1.0           # speed_scale sent with calibration goals

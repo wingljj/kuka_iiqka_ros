@@ -1,0 +1,16 @@
+# Payload calibration sequence (spec sections 9, 14): the legacy
+# 8-orientation set, settle time, and per-pose averaging count.
+soft_robot_manager:
+  calibration:
+    settle_time_s: 1.0            # legacy settle (spec 9 step 3c)
+    samples_per_pose: 100         # deliberate improvement over legacy 1
+    return_pose: {a: 0.0, b: 0.0, c: 0.0}
+    poses:                        # deg; varied A/B/C for an observable fit
+      - {a: 0.0,   b: 0.0,   c: 0.0}
+      - {a: 0.0,   b: 45.0,  c: 0.0}
+      - {a: 0.0,   b: -45.0, c: 0.0}
+      - {a: 0.0,   b: 0.0,   c: 45.0}
+      - {a: 0.0,   b: 0.0,   c: -45.0}
+      - {a: 45.0,  b: 30.0,  c: 0.0}
+      - {a: -45.0, b: 0.0,   c: 30.0}
+      - {a: 30.0,  b: -30.0, c: 30.0}
