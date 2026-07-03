@@ -23,11 +23,25 @@ include_directories(include ${catkin_INCLUDE_DIRS} ${TINYXML2_INCLUDE_DIRS})
 add_library(kuka_eki_protocol
   src/eki_frame.cpp
   src/eki_stream_splitter.cpp
+  src/tcp_client_transport.cpp
+  src/eki_session_core.cpp
 )
 target_link_libraries(kuka_eki_protocol ${TINYXML2_LIBRARIES})
 
 if(CATKIN_ENABLE_TESTING)
   catkin_add_gtest(test_eki_frame test/test_eki_frame.cpp)
   target_link_libraries(test_eki_frame kuka_eki_protocol
+                        ${GTEST_MAIN_LIBRARIES})
+
+  # Named test_eki_tcp_client_transport (not test_tcp_client_transport):
+  # catkin_make builds one CMake project, so gtest target names are
+  # global and would collide with the sri_force_torque_driver target.
+  catkin_add_gtest(test_eki_tcp_client_transport
+                   test/test_tcp_client_transport.cpp)
+  target_link_libraries(test_eki_tcp_client_transport kuka_eki_protocol
+                        ${GTEST_MAIN_LIBRARIES})
+
+  catkin_add_gtest(test_eki_session_core test/test_eki_session_core.cpp)
+  target_link_libraries(test_eki_session_core kuka_eki_protocol
                         ${GTEST_MAIN_LIBRARIES})
 endif()
