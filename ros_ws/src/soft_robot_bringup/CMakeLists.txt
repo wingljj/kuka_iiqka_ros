@@ -8,5 +8,4 @@ install(DIRECTORY config
         DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
         OPTIONAL)
 install(PROGRAMS scripts/load_payload_then_exec.sh scripts/run_mock.sh
-                 scripts/switch_controller_filter.py
         DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/scripts)

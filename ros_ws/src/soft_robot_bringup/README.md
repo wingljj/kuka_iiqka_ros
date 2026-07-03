@@ -28,6 +28,14 @@ eval expressions and offers no file-existence primitive — so
 the server before the manager loads any controller, and the calibrated
 values win over the `soft_robot_controllers.yaml` defaults at boot.
 
+Retired Task 8 debt (Task 8b): the temporary
+`switch_controller_filter.py` proxy (and its `<remap>` in both launch
+files) is gone. The manager now queries
+`/controller_manager/list_controllers` itself and drops no-op entries
+before every STRICT `switch_controller` request, so starts from READY,
+mode changes, and the calibration entry work against the real
+controller_manager without any middleman.
+
 ## 1. Build & static check
 
     cd ros_ws && catkin_make

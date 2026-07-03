@@ -3,6 +3,7 @@
 // wires ManagerOps to the real ROS clients, and forwards services/actions.
 #include <actionlib/client/simple_action_client.h>
 #include <actionlib/server/simple_action_server.h>
+#include <controller_manager_msgs/ListControllers.h>
 #include <controller_manager_msgs/LoadController.h>
 #include <controller_manager_msgs/SwitchController.h>
 #include <controller_manager_msgs/UnloadController.h>
@@ -28,6 +29,7 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "soft_force_control_manager/manager_runtime.h"
 
@@ -138,6 +140,9 @@ int main(int argc, char** argv) {
   ros::ServiceClient cm_switch =
       nh.serviceClient<controller_manager_msgs::SwitchController>(
           "/controller_manager/switch_controller");
+  ros::ServiceClient cm_list =
+      nh.serviceClient<controller_manager_msgs::ListControllers>(
+          "/controller_manager/list_controllers");
   ros::ServiceClient cm_load =
       nh.serviceClient<controller_manager_msgs::LoadController>(
           "/controller_manager/load_controller");
@@ -171,6 +176,9 @@ int main(int argc, char** argv) {
     t.valid = true;
     return t;
   };
+  // STRICT is safe here: the runtime pre-filters no-op entries against
+  // listRunningControllers below (Task 8b), so the request only carries
+  // real transitions.
   ops.switchControllers = [&](const std::string& start,
                               const std::string& stop) {
     controller_manager_msgs::SwitchController srv;
@@ -179,6 +187,13 @@ int main(int argc, char** argv) {
     srv.request.strictness =
         controller_manager_msgs::SwitchController::Request::STRICT;
     return cm_switch.call(srv) && srv.response.ok;
+  };
+  ops.listRunningControllers = [&](std::vector<std::string>& running) {
+    controller_manager_msgs::ListControllers srv;
+    if (!cm_list.call(srv)) return false;
+    for (const auto& c : srv.response.controller)
+      if (c.state == "running") running.push_back(c.name);
+    return true;
   };
   ops.publishMode = [&](std::uint8_t mode, std::uint8_t profile) {
     soft_robot_msgs::ModeCommand msg;

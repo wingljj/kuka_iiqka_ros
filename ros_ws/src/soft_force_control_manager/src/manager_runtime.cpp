@@ -1,6 +1,8 @@
 #include "soft_force_control_manager/manager_runtime.h"
 
+#include <algorithm>
 #include <chrono>
+#include <vector>
 
 namespace sfm {
 
@@ -89,6 +91,30 @@ HealthInputs ManagerRuntime::healthLocked(double now_s) const {
   return in;
 }
 
+// Task 8b: every controller switch goes through here so a STRICT request
+// never carries no-op entries (controller_manager refuses to stop a
+// non-running controller and to start a running one; from READY neither
+// controller runs, which made every first start fail). Runs OUTSIDE
+// mutex_ like all ops. Null query hook = legacy unfiltered passthrough;
+// a failed query refuses the switch (fail-closed).
+bool ManagerRuntime::switchFiltered(const std::string& start,
+                                    const std::string& stop) {
+  if (!ops_.switchControllers) return false;
+  std::string s = start;
+  std::string t = stop;
+  if (ops_.listRunningControllers) {
+    std::vector<std::string> running;
+    if (!ops_.listRunningControllers(running)) return false;
+    const auto runs = [&running](const std::string& n) {
+      return std::find(running.begin(), running.end(), n) != running.end();
+    };
+    if (!s.empty() && runs(s)) s.clear();   // already running: no-op
+    if (!t.empty() && !runs(t)) t.clear();  // not running: no-op
+    if (s.empty() && t.empty()) return true;  // nothing left to do
+  }
+  return ops_.switchControllers(s, t);
+}
+
 void ManagerRuntime::run() {
   while (running_.load()) {
     const double now = nowS();
@@ -141,9 +167,7 @@ void ManagerRuntime::run() {
         ops_.applyPayload(emitPayloadYaml(fit, ""), fit);
       }
       if (ops_.publishMode) ops_.publishMode(kModeIdle, cal_profile);
-      if (ops_.switchControllers) {
-        ops_.switchControllers("", cfg_.correction_controller);
-      }
+      switchFiltered("", cfg_.correction_controller);
       std::lock_guard<std::mutex> lock(mutex_);
       core_.calibrationFinished();
       active_controller_.clear();
@@ -205,7 +229,7 @@ CommandResult ManagerRuntime::startServo(std::uint8_t mode,
                                 ? cfg_.correction_controller
                                 : cfg_.compliance_controller;
   if (ops_.publishMode) ops_.publishMode(kModeIdle, profile);
-  if (!ops_.switchControllers || !ops_.switchControllers(target, other))
+  if (!switchFiltered(target, other))
     return {false, "controller switch failed"};
   if (ops_.publishMode) ops_.publishMode(mode, profile);
 
@@ -231,7 +255,7 @@ CommandResult ManagerRuntime::stopServo() {
     profile = profile_;
   }
   if (ops_.publishMode) ops_.publishMode(kModeIdle, profile);
-  if (ops_.switchControllers) ops_.switchControllers("", active);
+  switchFiltered("", active);
   if (ops_.ekiStopRsi) ops_.ekiStopRsi();
   std::lock_guard<std::mutex> lock(mutex_);
   const Verdict v = core_.requestStop();
@@ -281,9 +305,8 @@ CommandResult ManagerRuntime::beginCalibration() {
     profile = profile_;
   }
   if (ops_.publishMode) ops_.publishMode(kModeIdle, profile);
-  if (!ops_.switchControllers ||
-      !ops_.switchControllers(cfg_.correction_controller,
-                              cfg_.compliance_controller)) {
+  if (!switchFiltered(cfg_.correction_controller,
+                      cfg_.compliance_controller)) {
     std::lock_guard<std::mutex> lock(mutex_);
     core_.calibrationFinished();  // roll the request back
     return {false, "controller switch failed"};

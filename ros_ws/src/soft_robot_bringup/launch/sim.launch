@@ -45,16 +45,8 @@
     <param name="sensor_ip" value="127.0.0.1"/>
   </node>
 
-  <!-- Lenient switch proxy: the manager's STRICT switch always lists the
-       sibling controller to stop, which controller_manager rejects when
-       it is not running (see README, recorded deviation). -->
-  <node pkg="soft_robot_bringup" type="switch_controller_filter.py"
-        name="switch_controller_filter" output="screen"/>
-
   <node pkg="soft_force_control_manager" type="soft_robot_manager"
         name="soft_robot_manager" output="screen">
-    <remap from="/controller_manager/switch_controller"
-           to="/controller_manager/switch_controller_filtered"/>
     <param name="payload_file" value="/tmp/soft_robot_sim_payload.yaml"/>
     <!-- Sim speed-up: 2 poses would fail the n>=4 solve; keep all 8 but
          cut the averaging window. -->

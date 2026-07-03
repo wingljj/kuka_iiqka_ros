@@ -49,12 +49,6 @@
     <param name="sensor_ip" value="$(arg sensor_ip)"/>
   </node>
 
-  <!-- Lenient switch proxy: the manager's STRICT switch always lists the
-       sibling controller to stop, which controller_manager rejects when
-       it is not running (see README, recorded deviation). -->
-  <node pkg="soft_robot_bringup" type="switch_controller_filter.py"
-        name="switch_controller_filter" output="screen"/>
-
   <!-- System manager. Owns controller loading exclusively (Task 7): no
        spawner for the two soft_robot controllers anywhere in this file.
        The launch-prefix loads config/payload.yaml (if present) before the
@@ -62,8 +56,6 @@
   <node pkg="soft_force_control_manager" type="soft_robot_manager"
         name="soft_robot_manager" output="screen"
         launch-prefix="$(find soft_robot_bringup)/scripts/load_payload_then_exec.sh">
-    <remap from="/controller_manager/switch_controller"
-           to="/controller_manager/switch_controller_filtered"/>
     <param name="payload_file"
            value="$(find soft_robot_bringup)/config/payload.yaml"/>
   </node>

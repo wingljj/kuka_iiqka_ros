@@ -5,6 +5,7 @@
 #include <chrono>
 #include <functional>
 #include <mutex>
+#include <set>
 #include <string>
 #include <thread>
 #include <vector>
@@ -61,6 +62,15 @@ struct MockOps {
   int get_tool_fail_first = 0;   // fail this many getTool calls
   bool start_rsi_ok = true;
   bool switch_ok = true;
+  // Task 8b STRICT emulation: switchControllers fails on no-op entries
+  // (stop of a non-running / start of a running controller), exactly as
+  // the real controller_manager does under STRICT. `running` mirrors the
+  // controller_manager's running set; `provide_list` wires the
+  // listRunningControllers hook; `list_ok` scripts a query failure.
+  bool strict = false;
+  bool provide_list = false;
+  bool list_ok = true;
+  std::set<std::string> running;
   CalPose last_goal;
   int goals_sent = 0;
   std::string payload_yaml;
@@ -94,7 +104,15 @@ struct MockOps {
     o.switchControllers = [this](const std::string& start,
                                  const std::string& stop) {
       push("switch:" + start + "/" + stop);
-      return switch_ok;
+      std::lock_guard<std::mutex> lock(m);
+      if (!switch_ok) return false;
+      if (strict) {  // controller_manager STRICT: no-op entries are errors
+        if (!stop.empty() && running.count(stop) == 0) return false;
+        if (!start.empty() && running.count(start) != 0) return false;
+      }
+      if (!stop.empty()) running.erase(stop);
+      if (!start.empty()) running.insert(start);
+      return true;
     };
     o.publishMode = [this](std::uint8_t mode, std::uint8_t profile) {
       push("mode:" + std::to_string(mode) + "/" + std::to_string(profile));
@@ -112,7 +130,21 @@ struct MockOps {
       ++payload_applied;
       return true;
     };
+    if (provide_list) {
+      o.listRunningControllers = [this](std::vector<std::string>& out) {
+        std::lock_guard<std::mutex> lock(m);
+        if (!list_ok) return false;
+        out.assign(running.begin(), running.end());
+        return true;
+      };
+    }
     return o;
+  }
+  bool switchLogged() {
+    std::lock_guard<std::mutex> lock(m);
+    for (const auto& e : log)
+      if (e.rfind("switch:", 0) == 0) return true;
+    return false;
   }
   int goalsSent() { std::lock_guard<std::mutex> l(m); return goals_sent; }
   CalPose lastGoal() { std::lock_guard<std::mutex> l(m); return last_goal; }
@@ -408,5 +440,116 @@ TEST(ManagerRuntime, CalibrationRejectedOutsideReady) {
   EXPECT_FALSE(rt.beginCalibration().success);   // OFFLINE
   driveToServoing(rt, mock);
   EXPECT_FALSE(rt.beginCalibration().success);   // SERVOING
+  rt.stop();
+}
+
+// --- Task 8b: STRICT switch semantics (debt reclaim of the Task 8
+// bringup proxy). From READY neither controller is running, and the real
+// controller_manager under STRICT refuses any stop of a non-running
+// controller (or start of a running one). The runtime must therefore
+// query the running set and never emit no-op entries. ---
+
+TEST(ManagerRuntime, StartServoUnderStrictOmitsNonRunningStop) {
+  MockOps mock;
+  mock.strict = true;
+  mock.provide_list = true;
+  ManagerRuntime rt{fastConfig(), mock.ops()};
+  mock.rt = &rt;
+  ASSERT_TRUE(rt.start());
+  driveToReady(rt);
+
+  const CommandResult r = rt.startServo(2, 0);
+  EXPECT_TRUE(r.success) << r.message;
+  ASSERT_TRUE(waitFor(
+      [&] { return rt.snapshot().state == SystemState::SERVOING; }, 2000));
+  // The sibling is not running: it must not appear as a stop entry.
+  EXPECT_TRUE(mock.logged("switch:force_compliance_controller/"));
+  EXPECT_FALSE(mock.logged(
+      "switch:force_compliance_controller/cartesian_correction_controller"));
+  std::lock_guard<std::mutex> lock(mock.m);
+  EXPECT_EQ(mock.running.count("force_compliance_controller"), 1u);
+  rt.stop();
+}
+
+TEST(ManagerRuntime, CalibrationEntryUnderStrictOmitsNonRunningStop) {
+  MockOps mock;
+  mock.strict = true;
+  mock.provide_list = true;
+  ManagerRuntime rt{fastConfig(), mock.ops()};
+  mock.rt = &rt;
+  ASSERT_TRUE(rt.start());
+  driveToReady(rt);
+  rt.feedRsiState(true, false);
+
+  const CommandResult r = rt.beginCalibration();
+  EXPECT_TRUE(r.success) << r.message;
+  EXPECT_TRUE(mock.logged("switch:cartesian_correction_controller/"));
+  EXPECT_FALSE(mock.logged(
+      "switch:cartesian_correction_controller/force_compliance_controller"));
+
+  // Abort via a failed first move: the teardown stop of the now-RUNNING
+  // correction controller must pass STRICT and restore READY.
+  ASSERT_TRUE(waitFor([&] { return mock.goalsSent() == 1; }, 2000));
+  rt.onMotionResult(false);
+  ASSERT_TRUE(waitFor(
+      [&] { return rt.snapshot().state == SystemState::READY; }, 2000));
+  EXPECT_TRUE(mock.logged("switch:/cartesian_correction_controller"));
+  std::lock_guard<std::mutex> lock(mock.m);
+  EXPECT_EQ(mock.running.count("cartesian_correction_controller"), 0u);
+  rt.stop();
+}
+
+TEST(ManagerRuntime, StartServoAfterFaultResetSkipsFullNoOpSwitch) {
+  // FAULT does not stop the active controller; after reset the target is
+  // still running, so a restart of the same mode is a full no-op switch:
+  // nothing may be forwarded to the controller_manager, and the command
+  // must still succeed.
+  MockOps mock;
+  mock.strict = true;
+  mock.provide_list = true;
+  ManagerRuntime rt{fastConfig(), mock.ops()};
+  mock.rt = &rt;
+  ASSERT_TRUE(rt.start());
+  driveToServoing(rt, mock);
+  rt.feedRsiState(true, true);   // latched RSI fault
+  ASSERT_TRUE(waitFor(
+      [&] { return rt.snapshot().state == SystemState::FAULT; }, 2000));
+  ASSERT_TRUE(rt.resetFault().success);
+  rt.feedRsiState(true, false);
+  ASSERT_TRUE(waitFor(
+      [&] { return rt.snapshot().state == SystemState::READY; }, 2000));
+  {
+    std::lock_guard<std::mutex> lock(mock.m);
+    ASSERT_EQ(mock.running.count("force_compliance_controller"), 1u);
+    mock.log.clear();
+  }
+
+  const CommandResult r = rt.startServo(2, 0);
+  EXPECT_TRUE(r.success) << r.message;
+  ASSERT_TRUE(waitFor(
+      [&] { return rt.snapshot().state == SystemState::SERVOING; }, 2000));
+  EXPECT_EQ(rt.snapshot().mode, 2u);
+  EXPECT_FALSE(mock.switchLogged());   // no request reached the cm
+  rt.stop();
+}
+
+TEST(ManagerRuntime, StartServoFailsClosedWhenRunningQueryFails) {
+  MockOps mock;
+  mock.strict = true;
+  mock.provide_list = true;
+  mock.list_ok = false;          // running-set query itself fails
+  ManagerRuntime rt{fastConfig(), mock.ops()};
+  mock.rt = &rt;
+  ASSERT_TRUE(rt.start());
+  driveToReady(rt);
+  {
+    std::lock_guard<std::mutex> lock(mock.m);
+    mock.log.clear();
+  }
+
+  const CommandResult r = rt.startServo(2, 0);
+  EXPECT_FALSE(r.success);
+  EXPECT_EQ(rt.snapshot().state, SystemState::READY);  // stays READY
+  EXPECT_FALSE(mock.switchLogged());   // fail-closed: nothing forwarded
   rt.stop();
 }

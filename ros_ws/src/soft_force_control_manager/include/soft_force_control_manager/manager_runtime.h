@@ -6,6 +6,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "soft_force_control_manager/calibration_sequencer.h"
 #include "soft_force_control_manager/payload_yaml.h"
@@ -40,6 +41,15 @@ struct ManagerOps {
   std::function<ToolFrame()> ekiGetTool;
   std::function<bool(const std::string& start_ctrl,
                      const std::string& stop_ctrl)> switchControllers;
+  // Fills `running` with the names of the currently running controllers
+  // (Task 8b). Queried right before every switch so a STRICT request
+  // never carries no-op entries: controller_manager refuses to stop a
+  // controller that is not running (and to start one that already is).
+  // Returns false when the query itself failed; the switch is then
+  // refused (fail-closed, mirroring the retired bringup proxy). A null
+  // hook keeps the legacy unfiltered passthrough.
+  std::function<bool(std::vector<std::string>& running)>
+      listRunningControllers;
   std::function<void(std::uint8_t mode, std::uint8_t profile)> publishMode;
   std::function<void(const CalPose& target)> sendMotionGoal;
   std::function<bool(const std::string& yaml_text,
@@ -109,6 +119,11 @@ class ManagerRuntime {
  private:
   void run();
   HealthInputs healthLocked(double now_s) const;
+  // Issues a controller switch with no-op entries removed (Task 8b): the
+  // start entry is dropped when already running, the stop entry when not
+  // running, and a fully emptied request succeeds without any call. See
+  // ManagerOps::listRunningControllers for the null-hook/failure rules.
+  bool switchFiltered(const std::string& start, const std::string& stop);
   static double nowS();
 
   ManagerConfig cfg_;
