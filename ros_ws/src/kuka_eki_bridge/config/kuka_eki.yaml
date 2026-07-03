@@ -1,0 +1,15 @@
+# EKI management-channel parameters (spec section 14, kuka_rsi.yaml's EKI
+# keys live here with the bridge). Loaded into the kuka_eki_bridge private
+# namespace by the Plan 5 bringup. Direction (decision 5): the KRC is the
+# TCP server (<EXTERNAL><TYPE>Client</TYPE> in EkiConfig.xml); this node
+# is the client.
+kuka_eki_bridge:
+  kuka_ip: 192.168.1.10         # legacy Parameter.xml RobIP
+  eki_port: 54600
+  connect_timeout_ms: 1000
+  receive_timeout_ms: 50
+  reconnect_backoff_s: 1.0
+  auto_reconnect: true
+  response_timeout_s: 2.0       # one in-flight command deadline (decision 7)
+  state_timeout_s: 1.0          # heartbeat freshness threshold
+  connect_wait_ms: 3000         # /kuka/eki/connect bounded wait

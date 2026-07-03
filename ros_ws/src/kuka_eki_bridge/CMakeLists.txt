@@ -25,6 +25,7 @@ add_library(kuka_eki_protocol
   src/eki_stream_splitter.cpp
   src/tcp_client_transport.cpp
   src/eki_session_core.cpp
+  src/eki_bridge_runtime.cpp
 )
 target_link_libraries(kuka_eki_protocol ${TINYXML2_LIBRARIES})
 
@@ -35,6 +36,17 @@ target_link_libraries(kuka_eki_mock kuka_eki_protocol pthread)
 
 add_executable(eki_mock_server src/eki_mock_server_main.cpp)
 target_link_libraries(eki_mock_server kuka_eki_mock)
+
+add_executable(eki_bridge_node src/eki_bridge_node.cpp)
+add_dependencies(eki_bridge_node ${catkin_EXPORTED_TARGETS})
+target_link_libraries(eki_bridge_node kuka_eki_protocol ${catkin_LIBRARIES})
+
+install(TARGETS eki_mock_server eki_bridge_node
+        RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+install(DIRECTORY include/${PROJECT_NAME}/
+        DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION})
+install(DIRECTORY config
+        DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
 
 if(CATKIN_ENABLE_TESTING)
   catkin_add_gtest(test_eki_frame test/test_eki_frame.cpp)
@@ -56,4 +68,8 @@ if(CATKIN_ENABLE_TESTING)
   catkin_add_gtest(test_eki_mock_server test/test_eki_mock_server.cpp)
   target_link_libraries(test_eki_mock_server kuka_eki_mock
                         ${GTEST_MAIN_LIBRARIES})
+
+  catkin_add_gtest(test_eki_bridge_runtime test/test_eki_bridge_runtime.cpp)
+  target_link_libraries(test_eki_bridge_runtime kuka_eki_protocol
+                        kuka_eki_mock ${GTEST_MAIN_LIBRARIES})
 endif()
