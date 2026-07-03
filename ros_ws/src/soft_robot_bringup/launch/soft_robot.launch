@@ -1,0 +1,70 @@
+<launch>
+  <!-- Real-robot bringup (spec 5.8). The KRC connects as RSI UDP client
+       and serves EKI TCP; the SRI box serves TCP (Plan 4 decisions 1, 5). -->
+  <arg name="kuka_ip"   default="192.168.1.10"/>
+  <arg name="sensor_ip" default="192.168.1.1"/>
+
+  <!-- Controller parameters + calibrated payload override (decision 7).
+       payload.yaml is written by the manager after calibration; it is
+       loaded AFTER the controller defaults (by the manager node's
+       launch-prefix below, see README) so the calibration wins. A
+       conditional <rosparam if=.../> is impossible: roslaunch $(eval)
+       forbids double underscores and has no file-existence primitive. -->
+  <rosparam command="load"
+            file="$(find soft_robot_controllers)/config/soft_robot_controllers.yaml"/>
+
+  <!-- RSI hardware interface. Runs the controller_manager inside; keeps a
+       SINGLE-threaded callback queue (AsyncSpinner(1) in the node): the
+       controllers' mode_seq_/goal_seq_ producers rely on it (Plan 3
+       follow-up 5). Do NOT switch this node to a multithreaded spinner. -->
+  <node pkg="kuka_rsi_hw_interface" type="kuka_rsi_hw_interface_node"
+        name="kuka_rsi_hw_interface" output="screen">
+    <rosparam command="load"
+              file="$(find kuka_rsi_hw_interface)/config/kuka_rsi.yaml"/>
+  </node>
+
+  <!-- The Plan 4/5 package yamls carry their node name as the top-level
+       key (sri_ft_driver:/kuka_eki_bridge:/soft_robot_manager:): load
+       them at ROOT level so the keys land in the node's private ns.
+       kuka_rsi.yaml is flat and loads inside its node tag instead. -->
+  <rosparam command="load"
+            file="$(find kuka_eki_bridge)/config/kuka_eki.yaml"/>
+  <rosparam command="load"
+            file="$(find sri_force_torque_driver)/config/sri_ft.yaml"/>
+  <rosparam command="load"
+            file="$(find soft_force_control_manager)/config/manager.yaml"/>
+  <rosparam command="load"
+            file="$(find soft_force_control_manager)/config/calibration.yaml"/>
+
+  <!-- EKI management bridge (single-threaded spin by design; the manager
+       tolerates its publish gaps through eki_state_timeout_s, decision 3). -->
+  <node pkg="kuka_eki_bridge" type="eki_bridge_node"
+        name="kuka_eki_bridge" output="screen">
+    <param name="kuka_ip" value="$(arg kuka_ip)"/>
+  </node>
+
+  <!-- SRI force/torque driver. -->
+  <node pkg="sri_force_torque_driver" type="sri_driver_node"
+        name="sri_ft_driver" output="screen">
+    <param name="sensor_ip" value="$(arg sensor_ip)"/>
+  </node>
+
+  <!-- Lenient switch proxy: the manager's STRICT switch always lists the
+       sibling controller to stop, which controller_manager rejects when
+       it is not running (see README, recorded deviation). -->
+  <node pkg="soft_robot_bringup" type="switch_controller_filter.py"
+        name="switch_controller_filter" output="screen"/>
+
+  <!-- System manager. Owns controller loading exclusively (Task 7): no
+       spawner for the two soft_robot controllers anywhere in this file.
+       The launch-prefix loads config/payload.yaml (if present) before the
+       manager starts, i.e. before any controller is loaded. -->
+  <node pkg="soft_force_control_manager" type="soft_robot_manager"
+        name="soft_robot_manager" output="screen"
+        launch-prefix="$(find soft_robot_bringup)/scripts/load_payload_then_exec.sh">
+    <remap from="/controller_manager/switch_controller"
+           to="/controller_manager/switch_controller_filtered"/>
+    <param name="payload_file"
+           value="$(find soft_robot_bringup)/config/payload.yaml"/>
+  </node>
+</launch>

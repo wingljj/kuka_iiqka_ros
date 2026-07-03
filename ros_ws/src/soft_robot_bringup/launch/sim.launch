@@ -1,0 +1,63 @@
+<launch>
+  <!-- Three-mock closed loop on 127.0.0.1 (spec 15.3): RSI sim server +
+       EKI KRC mock + SRI sensor mock, fixed ports from the package yamls
+       (Task 2 port flags; XML comments cannot hold a literal double
+       hyphen). Smoke procedure: see README.md. -->
+  <rosparam command="load"
+            file="$(find soft_robot_controllers)/config/soft_robot_controllers.yaml"/>
+  <!-- Node-keyed yamls load at ROOT level (see soft_robot.launch note). -->
+  <rosparam command="load"
+            file="$(find kuka_eki_bridge)/config/kuka_eki.yaml"/>
+  <rosparam command="load"
+            file="$(find sri_force_torque_driver)/config/sri_ft.yaml"/>
+  <rosparam command="load"
+            file="$(find soft_force_control_manager)/config/manager.yaml"/>
+  <rosparam command="load"
+            file="$(find soft_force_control_manager)/config/calibration.yaml"/>
+
+  <node pkg="kuka_rsi_hw_interface" type="kuka_rsi_hw_interface_node"
+        name="kuka_rsi_hw_interface" output="screen">
+    <rosparam command="load"
+              file="$(find kuka_rsi_hw_interface)/config/kuka_rsi.yaml"/>
+    <param name="listen_ip" value="127.0.0.1"/>
+  </node>
+  <!-- KRC-side RSI mock: paces the 4 ms loop, integrates RKorr into its
+       pose (goal-mode convergence base). The mocks are plain executables
+       that reject roslaunch's implicit remapping args, so they run
+       through the run_mock.sh shim (see README). -->
+  <node pkg="soft_robot_bringup" type="run_mock.sh"
+        name="kuka_rsi_sim_server" output="screen"
+        args="kuka_rsi_hw_interface kuka_rsi_sim_server --target-ip 127.0.0.1 --target-port 49152 --cycle-ms 4"/>
+
+  <node pkg="soft_robot_bringup" type="run_mock.sh"
+        name="eki_mock_server" output="screen"
+        args="kuka_eki_bridge eki_mock_server --port 54600 --heartbeat-ms 100"/>
+  <node pkg="kuka_eki_bridge" type="eki_bridge_node"
+        name="kuka_eki_bridge" output="screen">
+    <param name="kuka_ip" value="127.0.0.1"/>
+  </node>
+
+  <node pkg="soft_robot_bringup" type="run_mock.sh"
+        name="sri_mock_server" output="screen"
+        args="sri_force_torque_driver sri_mock_server --port 4008 --fz 5"/>
+  <node pkg="sri_force_torque_driver" type="sri_driver_node"
+        name="sri_ft_driver" output="screen">
+    <param name="sensor_ip" value="127.0.0.1"/>
+  </node>
+
+  <!-- Lenient switch proxy: the manager's STRICT switch always lists the
+       sibling controller to stop, which controller_manager rejects when
+       it is not running (see README, recorded deviation). -->
+  <node pkg="soft_robot_bringup" type="switch_controller_filter.py"
+        name="switch_controller_filter" output="screen"/>
+
+  <node pkg="soft_force_control_manager" type="soft_robot_manager"
+        name="soft_robot_manager" output="screen">
+    <remap from="/controller_manager/switch_controller"
+           to="/controller_manager/switch_controller_filtered"/>
+    <param name="payload_file" value="/tmp/soft_robot_sim_payload.yaml"/>
+    <!-- Sim speed-up: 2 poses would fail the n>=4 solve; keep all 8 but
+         cut the averaging window. -->
+    <param name="calibration/samples_per_pose" value="20"/>
+  </node>
+</launch>
