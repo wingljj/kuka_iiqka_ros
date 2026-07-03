@@ -29,6 +29,7 @@ add_library(soft_force_control_manager_core
   src/system_state_core.cpp
   src/calibration_sequencer.cpp
   src/payload_yaml.cpp
+  src/manager_runtime.cpp
 )
 target_link_libraries(soft_force_control_manager_core ${catkin_LIBRARIES})
 
@@ -49,5 +50,10 @@ if(CATKIN_ENABLE_TESTING)
   catkin_add_gtest(test_manager_payload_yaml test/test_payload_yaml.cpp)
   target_link_libraries(test_manager_payload_yaml
                         soft_force_control_manager_core
+                        ${GTEST_MAIN_LIBRARIES})
+
+  catkin_add_gtest(test_manager_runtime test/test_manager_runtime.cpp)
+  target_link_libraries(test_manager_runtime
+                        soft_force_control_manager_core pthread
                         ${GTEST_MAIN_LIBRARIES})
 endif()
