@@ -12,22 +12,24 @@
 
 namespace {
 
-// This binary needs a fixed port (real clients configure it), so it wraps
-// the library mock only for waveform scripting and uses rate 0 + explicit
-// sendFrames pacing here.
+// Wraps the library mock for continuous waveforms; uses rate 0 + explicit
+// sendFrames pacing so the waveform can evolve per frame. Listens on
+// --port when given, else on a kernel-chosen port (both printed below).
+// (Plan 4 follow-up 2: the old comment claimed a fixed port was required.)
 struct Options {
   double rate_hz = 250.0;
   double fz = 0.0;
   double sine_amp = 0.0;
   double sine_hz = 0.0;
   int bad_every = 0;
+  int port = 0;
 };
 
 int usage(int code) {
   std::printf(
-      "usage: sri_mock_server [--rate HZ] [--fz N] [--sine-amp N]\n"
+      "usage: sri_mock_server [--port N] [--rate HZ] [--fz N] [--sine-amp N]\n"
       "                       [--sine-hz HZ] [--bad-every N]\n"
-      "Listens on a kernel-chosen 127.0.0.1 port (printed on stdout).\n");
+      "Listens on 127.0.0.1:--port (0/default = kernel-chosen, printed).\n");
   return code;
 }
 
@@ -46,9 +48,11 @@ int main(int argc, char** argv) {
     else if (a == "--sine-amp") opt.sine_amp = v;
     else if (a == "--sine-hz") opt.sine_hz = v;
     else if (a == "--bad-every") opt.bad_every = static_cast<int>(v);
+    else if (a == "--port") opt.port = static_cast<int>(v);
     else return usage(1);
   }
   sri::SriMockConfig cfg;
+  cfg.listen_port = static_cast<std::uint16_t>(opt.port);
   cfg.require_start_command = true;
   cfg.rate_hz = 0.0;  // paced manually below so the waveform can evolve
   sri::SriMockServer mock(cfg);

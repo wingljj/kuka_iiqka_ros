@@ -137,3 +137,24 @@ TEST(SriMock, PacedModeStreamsWithoutScripting) {
   FtSample out[8];
   EXPECT_GE(receiveSamples(t, a, out, 5, 1000), 5);
 }
+
+TEST(SriMock, FixedListenPortIsHonoured) {
+  // Probe-release-rebind: take a kernel-chosen free port, then ask the
+  // mock to bind exactly it (--port plumbing for the Plan 5 sim launch).
+  std::uint16_t port = 0;
+  {
+    SriMockServer probe{SriMockConfig{}};
+    ASSERT_TRUE(probe.start());
+    port = probe.port();
+    probe.stop();
+  }
+  SriMockConfig cfg;
+  cfg.listen_port = port;
+  SriMockServer mock(cfg);
+  ASSERT_TRUE(mock.start());
+  EXPECT_EQ(mock.port(), port);
+  TcpClientTransport t;
+  EXPECT_TRUE(t.connect("127.0.0.1", port, 500));
+  ASSERT_TRUE(mock.waitForClient(500));
+  mock.stop();
+}

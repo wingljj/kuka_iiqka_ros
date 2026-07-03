@@ -56,7 +56,8 @@ class EkiBridgeRuntime {
   void stop();
 
   // Waits (bounded) until the link is up. With auto_reconnect the io
-  // thread connects on its own; this only observes.
+  // thread connects on its own; without it this arms a single-shot
+  // request that is withdrawn again on timeout (Plan 4 follow-up 5).
   bool connectNow(int timeout_ms);
 
   ExecuteResult execute(EkiAction action, int value = 0,

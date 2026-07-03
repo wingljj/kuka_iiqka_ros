@@ -197,3 +197,25 @@ TEST(SriSession, ResetKeepsBiasAndResyncsAssembler) {
   ASSERT_EQ(feedOne(s, frameFx(2.0f, 4), kNow + 0.1, out), 1);
   EXPECT_NEAR(out[0].w.fx, 1.0, 1e-6);  // 2.0 - kept bias 1.0
 }
+
+TEST(SriSession, ResetClearsLastZeroAccepted) {
+  // Plan 4 follow-up 4 (N1): a capture killed by a reconnect must not let
+  // requestZero() report the PREVIOUS capture's success.
+  SriStreamSession s;
+  s.configure(config());  // zero_sample_count = 2
+  SriWrenchSample out[8];
+  s.startZero();
+  feedOne(s, frameFx(2.0f, 1), kNow, out);
+  feedOne(s, frameFx(4.0f, 2), kNow, out);
+  ASSERT_TRUE(s.lastZeroAccepted());  // capture #1: bias.fx = 3.0
+
+  s.startZero();                      // capture #2 begins...
+  feedOne(s, frameFx(2.0f, 3), kNow, out);
+  s.reset();                          // ...and dies with the connection
+  EXPECT_FALSE(s.zeroActive());
+  EXPECT_FALSE(s.lastZeroAccepted());  // must NOT echo capture #1
+
+  // The old bias survives reset (physical sensor state unchanged).
+  ASSERT_EQ(feedOne(s, frameFx(5.0f, 1), kNow, out), 1);
+  EXPECT_NEAR(out[0].w.fx, 2.0, 1e-6);  // 5.0 - 3.0
+}

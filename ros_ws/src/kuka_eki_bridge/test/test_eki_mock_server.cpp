@@ -188,3 +188,22 @@ TEST(EkiMock, HeartbeatModeStreamsPeriodically) {
     if (nextState(t, sp, s, 500)) ++got;
   EXPECT_EQ(got, 3);
 }
+
+TEST(EkiMock, FixedListenPortIsHonoured) {
+  std::uint16_t port = 0;
+  {
+    EkiMockServer probe{EkiMockConfig{}};
+    ASSERT_TRUE(probe.start());
+    port = probe.port();
+    probe.stop();
+  }
+  EkiMockConfig cfg;
+  cfg.listen_port = port;
+  EkiMockServer mock(cfg);
+  ASSERT_TRUE(mock.start());
+  EXPECT_EQ(mock.port(), port);
+  TcpClientTransport t;
+  EXPECT_TRUE(t.connect("127.0.0.1", port, 500));
+  ASSERT_TRUE(mock.waitForClient(500));
+  mock.stop();
+}

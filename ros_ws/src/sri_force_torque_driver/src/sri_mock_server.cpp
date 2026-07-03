@@ -39,7 +39,7 @@ bool SriMockServer::start() {
   sockaddr_in addr{};
   addr.sin_family = AF_INET;
   addr.sin_addr.s_addr = ::inet_addr("127.0.0.1");
-  addr.sin_port = 0;
+  addr.sin_port = htons(cfg_.listen_port);
   if (::bind(listen_fd_, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) !=
           0 ||
       ::listen(listen_fd_, 1) != 0) {

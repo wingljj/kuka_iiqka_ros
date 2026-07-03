@@ -160,3 +160,36 @@ TEST(EkiRuntime, HeartbeatFreshnessAndBoundedStop) {
                       .count();
   EXPECT_LT(ms, 1000);
 }
+
+TEST(EkiRuntime, ConnectNowTimeoutIsSingleShot) {
+  // Plan 4 follow-up 5 (N2) ruling: a failed manual connect must not arm
+  // an endless background retry loop when auto_reconnect is off.
+  std::uint16_t port = 0;
+  {
+    EkiMockServer probe{EkiMockConfig{}};
+    ASSERT_TRUE(probe.start());
+    port = probe.port();
+    probe.stop();
+  }
+  EkiBridgeConfig c = config(port);
+  c.auto_reconnect = false;
+  c.connect_timeout_ms = 100;
+  EkiBridgeRuntime rt{c};
+  ASSERT_TRUE(rt.start());
+
+  EXPECT_FALSE(rt.connectNow(300));  // nobody listening: bounded failure
+  // Drain the one attempt that may still be in flight at withdrawal time.
+  std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+  EkiMockConfig mock_cfg;
+  mock_cfg.listen_port = port;
+  EkiMockServer mock{mock_cfg};
+  ASSERT_TRUE(mock.start());
+  // Withdrawn request + auto_reconnect=false: must NOT connect by itself.
+  std::this_thread::sleep_for(std::chrono::milliseconds(400));
+  EXPECT_FALSE(rt.status().connected);
+
+  EXPECT_TRUE(rt.connectNow(2000));  // an explicit new request connects
+  rt.stop();
+  mock.stop();
+}

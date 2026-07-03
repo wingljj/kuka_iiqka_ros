@@ -12,6 +12,7 @@ namespace sri {
 struct SriMockConfig {
   bool require_start_command{true};  // hold frames until AT+GSD arrives
   double rate_hz{0.0};               // 0 = frames only via sendFrames()
+  std::uint16_t listen_port{0};      // 0 = kernel-chosen (default; tests)
 };
 
 // Scriptable stand-in for the SRI acquisition box: TCP server on

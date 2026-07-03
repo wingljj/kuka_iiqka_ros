@@ -11,8 +11,8 @@
 namespace {
 int usage(int code) {
   std::printf(
-      "usage: eki_mock_server [--heartbeat-ms N] [--start-faulted]\n"
-      "Listens on a kernel-chosen 127.0.0.1 port (printed on stdout).\n");
+      "usage: eki_mock_server [--port N] [--heartbeat-ms N] [--start-faulted]\n"
+      "Listens on 127.0.0.1:--port (0/default = kernel-chosen, printed).\n");
   return code;
 }
 }  // namespace
@@ -28,6 +28,8 @@ int main(int argc, char** argv) {
       start_faulted = true;
     } else if (a == "--heartbeat-ms" && i + 1 < argc) {
       cfg.heartbeat_period_s = std::atof(argv[++i]) / 1000.0;
+    } else if (a == "--port" && i + 1 < argc) {
+      cfg.listen_port = static_cast<std::uint16_t>(std::atoi(argv[++i]));
     } else {
       return usage(1);
     }

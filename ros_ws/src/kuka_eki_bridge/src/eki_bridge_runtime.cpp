@@ -48,6 +48,12 @@ bool EkiBridgeRuntime::connectNow(int timeout_ms) {
   connect_requested_ = true;
   cv_.wait_for(lock, std::chrono::milliseconds(timeout_ms),
                [this] { return connected_; });
+  // Plan 4 follow-up 5 (N2) ruling: the manual request is single-shot.
+  // Withdraw it on timeout so auto_reconnect=false deployments never
+  // degenerate into an endless background retry loop. One attempt armed
+  // just before withdrawal (<= connect_timeout_ms) may still land; that
+  // window is accepted and documented.
+  if (!connected_) connect_requested_ = false;
   return connected_;
 }
 

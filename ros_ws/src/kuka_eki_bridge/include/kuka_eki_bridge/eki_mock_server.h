@@ -12,6 +12,7 @@ namespace kuka_eki {
 
 struct EkiMockConfig {
   double heartbeat_period_s{0.0};  // 0 = heartbeats only via pushHeartbeat()
+  std::uint16_t listen_port{0};    // 0 = kernel-chosen (default; tests)
 };
 
 // KRC-side EKI mock (spec 15.2): TCP server on 127.0.0.1 (kernel-chosen

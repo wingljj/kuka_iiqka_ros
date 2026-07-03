@@ -24,7 +24,9 @@ void SriStreamSession::reset() {
   assembler_.reset();
   filter_.reset();
   have_last_pn_ = false;
-  zero_remaining_ = 0;  // an interrupted capture is abandoned, bias kept
+  zero_remaining_ = 0;    // an interrupted capture is abandoned, bias kept
+  last_zero_ok_ = false;  // Plan 4 follow-up 4 (N1): never report the
+                          // previous capture's success for this one
 }
 
 void SriStreamSession::startZero() {
