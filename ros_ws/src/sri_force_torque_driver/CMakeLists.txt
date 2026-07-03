@@ -24,10 +24,15 @@ include_directories(include ${catkin_INCLUDE_DIRS})
 # in Task 5 together with the mock sources.)
 add_library(sri_ft_protocol
   src/sri_frame.cpp
+  src/tcp_client_transport.cpp
 )
 target_link_libraries(sri_ft_protocol ${catkin_LIBRARIES})
 
 if(CATKIN_ENABLE_TESTING)
   catkin_add_gtest(test_sri_frame test/test_sri_frame.cpp)
   target_link_libraries(test_sri_frame sri_ft_protocol ${GTEST_MAIN_LIBRARIES})
+
+  catkin_add_gtest(test_tcp_client_transport test/test_tcp_client_transport.cpp)
+  target_link_libraries(test_tcp_client_transport sri_ft_protocol
+                        ${GTEST_MAIN_LIBRARIES})
 endif()
