@@ -72,4 +72,8 @@ if(CATKIN_ENABLE_TESTING)
   catkin_add_gtest(test_kuka_rsi_robot_hw test/test_kuka_rsi_robot_hw.cpp)
   target_link_libraries(test_kuka_rsi_robot_hw kuka_rsi_robot_hw
                         ${GTEST_MAIN_LIBRARIES})
+
+  catkin_add_gtest(test_rsi_integration test/test_rsi_integration.cpp)
+  target_link_libraries(test_rsi_integration kuka_rsi_robot_hw
+                        kuka_rsi_hw_interface_mock ${GTEST_MAIN_LIBRARIES})
 endif()
