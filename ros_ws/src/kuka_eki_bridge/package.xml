@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>kuka_eki_bridge</name>
+  <version>0.1.0</version>
+  <description>
+    EKI (EthernetKRL 6.1) management-channel bridge for the KUKA KR C5 /
+    iiQKA.OS2 (spec sections 5.2, 6.2, 6.4): XML command/state codec,
+    TCP stream splitting, seq/ack request-response session, the
+    /kuka/eki/* service surface, and a KRC-side mock for offline
+    closed-loop tests. Never used for per-cycle control.
+  </description>
+  <maintainer email="dev@example.com">ljj</maintainer>
+  <license>Proprietary</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>roscpp</depend>
+  <depend>std_srvs</depend>
+  <depend>diagnostic_msgs</depend>
+  <depend>soft_robot_msgs</depend>
+  <build_depend>libtinyxml2-dev</build_depend>
+  <exec_depend>libtinyxml2</exec_depend>
+</package>
