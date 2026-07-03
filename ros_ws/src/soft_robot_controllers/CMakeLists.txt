@@ -71,4 +71,8 @@ if(CATKIN_ENABLE_TESTING)
                    test/test_cartesian_correction_controller.cpp)
   target_link_libraries(test_cartesian_correction_controller ${PROJECT_NAME}
                         ${catkin_LIBRARIES} ${GTEST_MAIN_LIBRARIES})
+
+  catkin_add_gtest(test_controller_chain test/test_controller_chain.cpp)
+  target_link_libraries(test_controller_chain ${PROJECT_NAME}
+                        ${catkin_LIBRARIES} ${GTEST_MAIN_LIBRARIES})
 endif()
