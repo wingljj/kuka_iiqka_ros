@@ -15,11 +15,16 @@ add_message_files(
   RsiState.msg
   ModeCommand.msg
   ModeState.msg
+  SriStatus.msg
+  EkiState.msg
 )
 
 add_service_files(
   FILES
   GetTool.srv
+  SetFilter.srv
+  SetEkiMode.srv
+  SetToolBase.srv
 )
 
 add_action_files(

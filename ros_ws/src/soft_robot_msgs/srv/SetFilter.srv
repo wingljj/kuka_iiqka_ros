@@ -1,0 +1,7 @@
+# Configure the driver-side low-pass filter (/sri_ft/set_filter, spec
+# section 5.6). cutoff_hz = 0 disables filtering (raw passthrough).
+# Rebuilds and resets the filter state (Plan 1 follow-up 3 semantics).
+float64 cutoff_hz
+---
+bool success
+string message

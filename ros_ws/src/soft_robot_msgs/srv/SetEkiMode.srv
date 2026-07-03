@@ -1,0 +1,7 @@
+# Select the KRL operating mode over EKI (/kuka/eki/set_mode, spec 5.2).
+# The value is forwarded verbatim in the SET_MODE command; the KRL
+# program owns its interpretation.
+uint8 mode
+---
+bool success
+string message

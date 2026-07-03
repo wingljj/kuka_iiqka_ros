@@ -1,0 +1,17 @@
+# Push tool/base frames to the KRC over EKI (/kuka/eki/set_tool_base,
+# spec sections 5.2, 6.4). Units: mm / deg (KUKA A/B/C = Z-Y-X Euler).
+float64 tool_x
+float64 tool_y
+float64 tool_z
+float64 tool_a
+float64 tool_b
+float64 tool_c
+float64 base_x
+float64 base_y
+float64 base_z
+float64 base_a
+float64 base_b
+float64 base_c
+---
+bool success
+string message
