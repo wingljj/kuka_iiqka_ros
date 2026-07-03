@@ -41,6 +41,22 @@ add_library(kuka_rsi_hw_interface_mock
 )
 target_link_libraries(kuka_rsi_hw_interface_mock kuka_rsi_protocol pthread)
 
+add_executable(kuka_rsi_sim_server src/kuka_rsi_sim_server_main.cpp)
+target_link_libraries(kuka_rsi_sim_server kuka_rsi_hw_interface_mock)
+
+add_executable(kuka_rsi_hw_interface_node src/kuka_rsi_hw_interface_node.cpp)
+add_dependencies(kuka_rsi_hw_interface_node
+                 ${catkin_EXPORTED_TARGETS})
+target_link_libraries(kuka_rsi_hw_interface_node kuka_rsi_robot_hw
+                      ${catkin_LIBRARIES})
+
+install(TARGETS kuka_rsi_sim_server kuka_rsi_hw_interface_node
+        RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+install(DIRECTORY include/${PROJECT_NAME}/
+        DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION})
+install(DIRECTORY config launch
+        DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
+
 if(CATKIN_ENABLE_TESTING)
   catkin_add_gtest(test_rsi_frame_parse test/test_rsi_frame_parse.cpp)
   target_link_libraries(test_rsi_frame_parse kuka_rsi_protocol

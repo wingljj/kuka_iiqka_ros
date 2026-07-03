@@ -1,0 +1,8 @@
+# RSI network settings (spec section 14, kuka_rsi.yaml migration keys).
+# EKI settings live in kuka_eki_bridge (Plan 4).
+listen_ip: "0.0.0.0"          # PC-side bind address (legacy RobIP peer)
+listen_port: 49152            # RSI UDP port; must match the KRC RSI config
+read_timeout_ms: 8            # 2 RSI cycles (IPOC timeout)
+max_consecutive_timeouts: 5   # missed cycles before latched fault
+max_correction_trans: 0.5     # secondary RKorr clamp [mm/cycle]
+max_correction_rot: 0.05      # secondary RKorr clamp [deg/cycle]
