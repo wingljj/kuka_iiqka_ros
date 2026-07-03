@@ -1,0 +1,78 @@
+# Controller parameters for the soft robot system (spec section 14,
+# controllers.yaml + force_control.yaml migration keys). Both controllers
+# claim the exclusive kuka_tcp correction resource: only one of them can
+# be RUNNING at a time; the manager (Plan 5) swaps them on mode change.
+force_compliance_controller:
+  type: soft_robot_controllers/ForceComplianceController
+  cartesian_resource: kuka_tcp
+  wrench_topic: /sri_ft/wrench_raw
+  mode_command_topic: /soft_robot/mode_command
+  mode_state_topic: /soft_robot/mode_state
+  rsi_state_topic: /kuka/rsi/state
+  wrench_timeout: 0.012          # s; ~3 RSI cycles (spec section 8)
+  safety:
+    max_corr_trans: 0.5          # mm per cycle per axis
+    max_corr_rot: 0.05           # deg per cycle per axis
+    force_ceiling: 500.0         # N; legacy hard cutoff (spec 12.1)
+    torque_ceiling: 50.0         # Nm
+  payload:                       # fallback until calibration (Plan 5)
+    gravity_n: 0.0
+    com_x: 0.0
+    com_y: 0.0
+    com_z: 0.0
+    bias_fx: 0.0
+    bias_fy: 0.0
+    bias_fz: 0.0
+    bias_tx: 0.0
+    bias_ty: 0.0
+    bias_tz: 0.0
+  profiles:
+    drag:                        # legacy modes 1-2 (spec 7.3)
+      filter_cutoff_hz: 5.0
+      speed_scale: 1.0
+      gain_translation: 0.4      # (mm/s)/N; commissioning refines these
+      gain_rotation: 0.8         # (deg/s)/Nm
+      max_speed_translation: 30.0
+      max_speed_rotation: 10.0
+      max_accel_translation: 200.0
+      max_accel_rotation: 100.0
+      adaptive_deadband: true
+      ramp_window_s: 2.0         # legacy 500 x 4 ms LIMSET window
+      ramp_force_margin_n: 5.0   # legacy FTLimSet(5+FSum, ...)
+      ramp_torque_margin_nm: 1.0
+      auto_retare: true
+      retare_orientation_tol_deg: 1.0
+      retare_rearm_factor: 2.0
+    precision:                   # legacy modes 3-7 (spec 7.3, section 10)
+      filter_cutoff_hz: 10.0
+      speed_scale: 1.0
+      gain_translation: 0.1
+      gain_rotation: 0.2
+      max_speed_translation: 10.0
+      max_speed_rotation: 2.0
+      max_accel_translation: 100.0
+      max_accel_rotation: 50.0
+      deadband_force: 30.0       # fixed (legacy LIMSET hardcoded limits)
+      deadband_torque: 4.0
+      adaptive_deadband: false
+      auto_retare: false
+
+cartesian_correction_controller:
+  type: soft_robot_controllers/CartesianCorrectionController
+  cartesian_resource: kuka_tcp
+  command_topic: /soft_robot/cartesian_correction_command
+  mode_command_topic: /soft_robot/mode_command
+  rsi_state_topic: /kuka/rsi/state
+  action_name: /soft_robot/move_to_orientation
+  stream_timeout: 0.1            # s; zero output on stale command (spec 7.7)
+  safety:
+    max_corr_trans: 0.5
+    max_corr_rot: 0.05
+    force_ceiling: 500.0         # inert here (no wrench), kept for symmetry
+    torque_ceiling: 50.0
+  goal:                          # spec section 14 controllers.yaml keys
+    max_speed_dps: 5.0
+    p_gain: 1.0
+    tol_deg: 0.1
+    hold_s: 0.2
+    timeout_s: 30.0

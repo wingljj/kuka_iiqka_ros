@@ -1,0 +1,22 @@
+<library path="lib/libsoft_robot_controllers">
+  <class name="soft_robot_controllers/ForceComplianceController"
+         type="soft_robot_controllers::ForceComplianceController"
+         base_class_type="controller_interface::ControllerBase">
+    <description>
+      SRI force-compliance controller: admittance pipeline over the
+      gravity-compensated wrench, DRAG/PRECISION profiles, adaptive
+      startup deadband, edge-triggered auto re-tare, 500 N hard cutoff
+      (spec sections 7, 12.1).
+    </description>
+  </class>
+  <class name="soft_robot_controllers/CartesianCorrectionController"
+         type="soft_robot_controllers::CartesianCorrectionController"
+         base_class_type="controller_interface::ControllerBase">
+    <description>
+      Direct Cartesian correction controller: stream passthrough with
+      command timeout, plus RKorr goal mode hosting OrientationMotionCore
+      behind the /soft_robot/move_to_orientation action (spec sections
+      5.3, 7.6, 7.7).
+    </description>
+  </class>
+</library>
