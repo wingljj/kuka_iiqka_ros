@@ -12,7 +12,7 @@ pkg_check_modules(TINYXML2 REQUIRED tinyxml2)
 
 catkin_package(
   INCLUDE_DIRS include
-  LIBRARIES kuka_eki_protocol
+  LIBRARIES kuka_eki_protocol kuka_eki_mock
   CATKIN_DEPENDS roscpp std_srvs diagnostic_msgs soft_robot_msgs
 )
 
@@ -27,6 +27,14 @@ add_library(kuka_eki_protocol
   src/eki_session_core.cpp
 )
 target_link_libraries(kuka_eki_protocol ${TINYXML2_LIBRARIES})
+
+add_library(kuka_eki_mock
+  src/eki_mock_server.cpp
+)
+target_link_libraries(kuka_eki_mock kuka_eki_protocol pthread)
+
+add_executable(eki_mock_server src/eki_mock_server_main.cpp)
+target_link_libraries(eki_mock_server kuka_eki_mock)
 
 if(CATKIN_ENABLE_TESTING)
   catkin_add_gtest(test_eki_frame test/test_eki_frame.cpp)
@@ -43,5 +51,9 @@ if(CATKIN_ENABLE_TESTING)
 
   catkin_add_gtest(test_eki_session_core test/test_eki_session_core.cpp)
   target_link_libraries(test_eki_session_core kuka_eki_protocol
+                        ${GTEST_MAIN_LIBRARIES})
+
+  catkin_add_gtest(test_eki_mock_server test/test_eki_mock_server.cpp)
+  target_link_libraries(test_eki_mock_server kuka_eki_mock
                         ${GTEST_MAIN_LIBRARIES})
 endif()
