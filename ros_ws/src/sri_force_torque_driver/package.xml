@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>sri_force_torque_driver</name>
+  <version>0.1.0</version>
+  <description>
+    Ethernet driver for the SRI six-axis force/torque sensor (spec
+    sections 5.6, 8): M8128-style binary stream parsing, tare and
+    optional low-pass session logic, bounded reconnect, WrenchStamped
+    publishing, and a scriptable sensor mock for offline closed-loop
+    tests. Contains no KUKA-specific control behavior.
+  </description>
+  <maintainer email="dev@example.com">ljj</maintainer>
+  <license>Proprietary</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>roscpp</depend>
+  <depend>geometry_msgs</depend>
+  <depend>std_srvs</depend>
+  <depend>soft_force_control_core</depend>
+  <depend>soft_robot_msgs</depend>
+</package>
