@@ -63,6 +63,7 @@ void KukaRsiRobotHW::registerInterfaces() {
 
 void KukaRsiRobotHW::read(const ros::Time& /*time*/,
                           const ros::Duration& /*period*/) {
+  if (fault_clear_requested_.exchange(false)) monitor_.clearFault();
   const int n = udp_.receive(rx_buf_, sizeof(rx_buf_) - 1, cfg_.read_timeout_ms);
   if (n <= 0) {
     monitor_.onTimeout();

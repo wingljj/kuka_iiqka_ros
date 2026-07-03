@@ -3,6 +3,7 @@ project(kuka_rsi_hw_interface)
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp
+  std_srvs
   hardware_interface
   controller_manager
   realtime_tools
@@ -14,7 +15,7 @@ pkg_check_modules(TINYXML2 REQUIRED tinyxml2)
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES kuka_rsi_protocol kuka_rsi_robot_hw kuka_rsi_hw_interface_mock
-  CATKIN_DEPENDS roscpp hardware_interface controller_manager realtime_tools
+  CATKIN_DEPENDS roscpp std_srvs hardware_interface controller_manager realtime_tools
                  soft_robot_msgs
 )
 

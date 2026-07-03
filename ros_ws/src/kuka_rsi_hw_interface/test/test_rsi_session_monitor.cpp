@@ -102,3 +102,36 @@ TEST(SessionMonitor, FaultIsLatchedUntilReset) {
   EXPECT_FALSE(m.connected());  // reset returns to initial state
   EXPECT_EQ(m.stats().total_timeouts, 0u);
 }
+
+TEST(SessionMonitor, ClearFaultKeepsCumulativeCounters) {
+  // Plan 4 follow-up 10: the manager recovery path must not wipe the
+  // "cumulative since node start" RsiState counters.
+  SessionConfig cfg;
+  cfg.max_consecutive_timeouts = 2;
+  RsiSessionMonitor m{cfg};
+  m.onFrame(frameWithIpoc(1));
+  m.onTimeout();
+  m.onTimeout();
+  ASSERT_TRUE(m.faulted());
+  ASSERT_EQ(m.stats().total_timeouts, 2u);
+
+  m.clearFault();
+  EXPECT_FALSE(m.faulted());
+  EXPECT_EQ(m.stats().consecutive_timeouts, 0u);
+  EXPECT_EQ(m.stats().total_timeouts, 2u);   // kept
+  EXPECT_TRUE(m.connected());                // kept
+  EXPECT_EQ(m.stats().last_ipoc, 1u);        // kept
+}
+
+TEST(SessionMonitor, ClearFaultRestartsMissCounting) {
+  SessionConfig cfg;
+  cfg.max_consecutive_timeouts = 2;
+  RsiSessionMonitor m{cfg};
+  m.onFrame(frameWithIpoc(1));
+  m.onTimeout();
+  m.onTimeout();
+  m.clearFault();
+  m.onTimeout();                             // 1 < 2: not faulted again
+  EXPECT_FALSE(m.faulted());
+  EXPECT_EQ(m.stats().total_timeouts, 3u);
+}

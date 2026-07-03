@@ -4,6 +4,7 @@
 #include <controller_manager/controller_manager.h>
 #include <ros/ros.h>
 #include <soft_robot_msgs/RsiState.h>
+#include <std_srvs/Trigger.h>
 
 #include "kuka_rsi_hw_interface/kuka_rsi_robot_hw.h"
 
@@ -22,6 +23,20 @@ int main(int argc, char** argv) {
   controller_manager::ControllerManager cm(&hw, root_nh);
   ros::Publisher state_pub =
       root_nh.advertise<soft_robot_msgs::RsiState>("kuka/rsi/state", 10);
+
+  // Manager-facing recovery service (Plan 4 follow-up 10). The clear is
+  // deferred to the next read() cycle; cumulative RsiState counters are
+  // preserved (clearFault, not reset).
+  ros::ServiceServer reset_srv =
+      root_nh.advertiseService<std_srvs::Trigger::Request,
+                               std_srvs::Trigger::Response>(
+          "/kuka/rsi/reset_fault",
+          [&hw](std_srvs::Trigger::Request&, std_srvs::Trigger::Response& res) {
+            hw.requestFaultClear();
+            res.success = true;
+            res.message = "fault clear requested; applied on next RSI read cycle";
+            return true;
+          });
 
   ros::AsyncSpinner spinner(1);  // services/topics off the control thread
   spinner.start();

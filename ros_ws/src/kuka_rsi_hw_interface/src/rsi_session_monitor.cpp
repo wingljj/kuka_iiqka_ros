@@ -32,4 +32,9 @@ void RsiSessionMonitor::countMiss() {
 
 void RsiSessionMonitor::reset() { stats_ = SessionStats{}; }
 
+void RsiSessionMonitor::clearFault() {
+  stats_.fault = false;
+  stats_.consecutive_timeouts = 0;
+}
+
 }  // namespace kuka_rsi

@@ -217,3 +217,41 @@ TEST(RobotHW, WriteBeforeAnyFrameIsSilentNoop) {
   hw.write(ros::Time(), ros::Duration(0.004));
   EXPECT_FALSE(hw.connected());
 }
+
+TEST(RobotHW, ResetFaultKeepsCounters) {
+  KukaRsiRobotHW hw;
+  ASSERT_TRUE(hw.configure(testConfig(2)));
+  FakeKrc krc;
+  ASSERT_TRUE(krc.bind());
+  ASSERT_TRUE(krc.sendState(hw.listenPort(), 0.0, 0.0, 1));
+  hw.read(ros::Time(), ros::Duration(0.004));   // connected
+  hw.read(ros::Time(), ros::Duration(0.004));   // timeout 1
+  hw.read(ros::Time(), ros::Duration(0.004));   // timeout 2 -> fault
+  ASSERT_TRUE(hw.faulted());
+  ASSERT_EQ(hw.sessionStats().total_timeouts, 2u);
+
+  hw.resetFault();  // now clearFault semantics: counters survive
+  EXPECT_FALSE(hw.faulted());
+  EXPECT_EQ(hw.sessionStats().total_timeouts, 2u);
+}
+
+TEST(RobotHW, RequestFaultClearAppliedOnRead) {
+  KukaRsiRobotHW hw;
+  ASSERT_TRUE(hw.configure(testConfig(2)));
+  FakeKrc krc;
+  ASSERT_TRUE(krc.bind());
+  ASSERT_TRUE(krc.sendState(hw.listenPort(), 0.0, 0.0, 1));
+  hw.read(ros::Time(), ros::Duration(0.004));
+  hw.read(ros::Time(), ros::Duration(0.004));
+  hw.read(ros::Time(), ros::Duration(0.004));
+  ASSERT_TRUE(hw.faulted());
+
+  hw.requestFaultClear();
+  EXPECT_TRUE(hw.faulted());  // deferred: applied at the next read()
+
+  ASSERT_TRUE(krc.sendState(hw.listenPort(), 42.0, 0.0, 2));
+  hw.read(ros::Time(), ros::Duration(0.004));
+  EXPECT_FALSE(hw.faulted());
+  auto h = hw.get<kuka_rsi::CartesianStateInterface>()->getHandle("kuka_tcp");
+  EXPECT_DOUBLE_EQ(h.getX(), 42.0);  // the same read ingests the frame
+}

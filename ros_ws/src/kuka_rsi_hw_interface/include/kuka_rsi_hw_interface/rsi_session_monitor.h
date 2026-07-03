@@ -24,7 +24,7 @@ struct SessionStats {
 // Tracks RSI link health (spec section 12.2): IPOC continuity, timeout
 // runs, and a latched communication fault. Timeouts before the first valid
 // frame never fault (the KRC simply has not started RSI yet). A latched
-// fault is only cleared by reset() — the manager/EKI layer owns recovery.
+// fault is only cleared by clearFault()/reset() — the manager/EKI layer owns recovery.
 // All methods are allocation-free and non-blocking.
 class RsiSessionMonitor {
  public:
@@ -34,6 +34,11 @@ class RsiSessionMonitor {
   void onTimeout();
   void onBadFrame();
   void reset();
+  // Manager-driven fault recovery (Plan 4 follow-up 10): unlatches the
+  // fault and restarts the consecutive-miss run, but KEEPS the cumulative
+  // counters promised as "since node start" by RsiState. reset() (full
+  // wipe) stays for tests/reconnect scenarios only.
+  void clearFault();
 
   bool connected() const { return stats_.connected; }
   bool faulted() const { return stats_.fault; }

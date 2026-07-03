@@ -4,6 +4,7 @@
 #include <hardware_interface/robot_hw.h>
 #include <ros/ros.h>
 
+#include <atomic>
 #include <cstdint>
 #include <string>
 
@@ -42,7 +43,12 @@ class KukaRsiRobotHW : public hardware_interface::RobotHW {
   bool faulted() const { return monitor_.faulted(); }
   const SessionStats& sessionStats() const { return monitor_.stats(); }
   std::uint64_t saturationCount() const { return saturation_count_; }
-  void resetFault() { monitor_.reset(); }
+  // Immediate variant (control-thread / test use): keeps cumulative
+  // counters (Plan 4 follow-up 10).
+  void resetFault() { monitor_.clearFault(); }
+  // Thread-safe variant for the node's service callback: applied at the
+  // start of the next read() so only the control thread touches monitor_.
+  void requestFaultClear() { fault_clear_requested_.store(true); }
   std::uint16_t listenPort() const { return udp_.boundPort(); }
 
  private:
@@ -64,6 +70,7 @@ class KukaRsiRobotHW : public hardware_interface::RobotHW {
   std::uint64_t last_ipoc_{0};
   std::uint64_t watchdog_{0};
   std::uint64_t saturation_count_{0};
+  std::atomic<bool> fault_clear_requested_{false};
   char rx_buf_[1024];
   char tx_buf_[1024];
 
