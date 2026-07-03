@@ -11,6 +11,18 @@
 
 namespace kuka_rsi {
 
+// One reply window with stale-backlog resync (Task 8c debt fix): keeps
+// receiving until a reply matching the awaited IPOC is applied (returns
+// true) or timeout_ms expires (returns false). Stale replies left queued
+// by a PC-side stall are consumed inside the same window -- each still
+// bumps ipoc_echo_errors via applyReply -- so the mock recovers by itself
+// instead of staying one packet behind forever. If nothing at all arrives
+// in the window, noteReplyTimeout() is recorded. `mutex`, when non-null,
+// is held around every core access so a threaded caller can read stats
+// concurrently. Test/mock code: not realtime.
+bool receiveReplyWindow(RsiMockCore& core, UdpTransport& udp,
+                        int timeout_ms, std::mutex* mutex = nullptr);
+
 // Threaded UDP wrapper around RsiMockCore playing the KRC role: the mock
 // is the UDP client, it sends the state frame first and waits for the
 // PC's <Sen> reply each cycle (spec section 6.1). Test code: locking and

@@ -10,6 +10,7 @@
 #include <thread>
 
 #include "kuka_rsi_hw_interface/rsi_mock_core.h"
+#include "kuka_rsi_hw_interface/rsi_mock_server.h"
 #include "kuka_rsi_hw_interface/udp_transport.h"
 
 namespace {
@@ -70,7 +71,6 @@ int main(int argc, char** argv) {
               opt.target_ip.c_str(), opt.target_port, opt.cycle_ms);
 
   char tx[1024];
-  char rx[1024];
   std::uint64_t cycle = 0;
   for (;;) {
     const auto deadline = std::chrono::steady_clock::now() +
@@ -82,12 +82,10 @@ int main(int argc, char** argv) {
       std::fprintf(stderr, "kuka_rsi_sim_server: send failed\n");
       return 1;
     }
-    const int r = udp.receive(rx, sizeof(rx), opt.reply_timeout_ms);
-    if (r > 0) {
-      core.applyReply(rx, static_cast<std::size_t>(r));
-    } else {
-      core.noteReplyTimeout();
-    }
+    // Resync receive (Task 8c debt fix): drains any stale backlog left by
+    // a PC-side stall inside the window instead of staying one packet
+    // behind forever. Records the timeout itself when nothing arrives.
+    kuka_rsi::receiveReplyWindow(core, udp, opt.reply_timeout_ms);
     if (++cycle % 250 == 0) {  // once a second at 4 ms
       const kuka_rsi::MockStats& s = core.stats();
       std::printf(

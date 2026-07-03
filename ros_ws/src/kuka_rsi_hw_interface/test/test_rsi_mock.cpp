@@ -121,6 +121,61 @@ TEST(MockServer, DrivesCycleAgainstManualPeer) {
   EXPECT_EQ(s.ipoc_echo_errors, 0u);
 }
 
+// Task 8c debt fix: one PC-side stall longer than the mock's reply window
+// used to leave the mock permanently one packet behind (every echo stale,
+// echo_err +1 per cycle, pose frozen). The mock must resync within one
+// reply window: consume the stale backlog and apply the reply whose IPOC
+// matches the frame just sent.
+TEST(MockServer, RecoversFromStaleReplyBacklog) {
+  UdpTransport pc;  // hand-rolled PC side
+  ASSERT_TRUE(pc.bind("127.0.0.1", 0));
+
+  RsiMockServer server(MockConfig{}, "127.0.0.1", pc.boundPort(), 100);
+  ASSERT_TRUE(server.start());
+
+  char buf[1024];
+  // Simulated PC stall: swallow the first frame without replying and wait
+  // (event-driven, no sleeps) for the mock to time out and send the next.
+  int n = pc.receive(buf, sizeof(buf), 500);
+  ASSERT_GT(n, 0);
+  RobFrame f0;
+  ASSERT_TRUE(kuka_rsi::parseRobFrame(buf, n, f0));
+
+  n = pc.receive(buf, sizeof(buf), 500);
+  ASSERT_GT(n, 0);
+  RobFrame f1;
+  ASSERT_TRUE(kuka_rsi::parseRobFrame(buf, n, f1));
+  ASSERT_EQ(f1.ipoc, f0.ipoc + 4);
+
+  // Backlog of 2 queued replies -- exactly what a stall leaves in the
+  // socket buffer: the stale echo for f0, then the fresh echo for f1.
+  const std::string stale = senReply(f0.ipoc, 0.0);
+  const std::string fresh = senReply(f1.ipoc, 0.2);
+  ASSERT_TRUE(pc.sendToLastSender(stale.data(), stale.size()));
+  ASSERT_TRUE(pc.sendToLastSender(fresh.data(), fresh.size()));
+
+  // From here on answer every frame promptly with +0.2 mm X. Without
+  // resync the mock stays one packet behind forever: every echo below is
+  // rejected and nothing integrates.
+  for (int i = 0; i < 5; ++i) {
+    n = pc.receive(buf, sizeof(buf), 500);
+    ASSERT_GT(n, 0);
+    RobFrame f;
+    ASSERT_TRUE(kuka_rsi::parseRobFrame(buf, n, f));
+    const std::string reply = senReply(f.ipoc, 0.2);
+    ASSERT_TRUE(pc.sendToLastSender(reply.data(), reply.size()));
+  }
+  server.stop();
+
+  const kuka_rsi::MockStats s = server.statsSnapshot();
+  // Only the one stale packet may count as an echo error; broken code
+  // accumulates one per cycle (>= 6 here).
+  EXPECT_LE(s.ipoc_echo_errors, 1u);
+  // The fresh echo and all 5 follow-ups integrated: 6 * 0.2 mm on X.
+  EXPECT_NEAR(server.poseX(), 1.2, 1e-9);
+  EXPECT_GE(s.reply_timeouts, 1u);  // the withheld f0 window
+}
+
 TEST(MockServer, CountsReplyTimeouts) {
   RsiMockServer server(MockConfig{}, "127.0.0.1", 1 /* nobody listens */, 10);
   ASSERT_TRUE(server.start());
