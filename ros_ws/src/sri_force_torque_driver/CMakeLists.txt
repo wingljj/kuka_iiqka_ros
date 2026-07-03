@@ -25,6 +25,7 @@ include_directories(include ${catkin_INCLUDE_DIRS})
 add_library(sri_ft_protocol
   src/sri_frame.cpp
   src/tcp_client_transport.cpp
+  src/sri_stream_session.cpp
 )
 target_link_libraries(sri_ft_protocol ${catkin_LIBRARIES})
 
@@ -35,4 +36,8 @@ if(CATKIN_ENABLE_TESTING)
   catkin_add_gtest(test_tcp_client_transport test/test_tcp_client_transport.cpp)
   target_link_libraries(test_tcp_client_transport sri_ft_protocol
                         ${GTEST_MAIN_LIBRARIES})
+
+  catkin_add_gtest(test_sri_stream_session test/test_sri_stream_session.cpp)
+  target_link_libraries(test_sri_stream_session sri_ft_protocol
+                        ${catkin_LIBRARIES} ${GTEST_MAIN_LIBRARIES})
 endif()
