@@ -13,7 +13,7 @@ pkg_check_modules(TINYXML2 REQUIRED tinyxml2)
 
 catkin_package(
   INCLUDE_DIRS include
-  LIBRARIES kuka_rsi_protocol
+  LIBRARIES kuka_rsi_protocol kuka_rsi_robot_hw
   CATKIN_DEPENDS roscpp hardware_interface controller_manager realtime_tools
                  soft_robot_msgs
 )
@@ -29,6 +29,11 @@ add_library(kuka_rsi_protocol
   src/udp_transport.cpp
 )
 target_link_libraries(kuka_rsi_protocol ${TINYXML2_LIBRARIES})
+
+add_library(kuka_rsi_robot_hw
+  src/kuka_rsi_robot_hw.cpp
+)
+target_link_libraries(kuka_rsi_robot_hw kuka_rsi_protocol ${catkin_LIBRARIES})
 
 add_library(kuka_rsi_hw_interface_mock
   src/rsi_mock_core.cpp
@@ -62,5 +67,9 @@ if(CATKIN_ENABLE_TESTING)
 
   catkin_add_gtest(test_rsi_mock test/test_rsi_mock.cpp)
   target_link_libraries(test_rsi_mock kuka_rsi_hw_interface_mock
+                        ${GTEST_MAIN_LIBRARIES})
+
+  catkin_add_gtest(test_kuka_rsi_robot_hw test/test_kuka_rsi_robot_hw.cpp)
+  target_link_libraries(test_kuka_rsi_robot_hw kuka_rsi_robot_hw
                         ${GTEST_MAIN_LIBRARIES})
 endif()
