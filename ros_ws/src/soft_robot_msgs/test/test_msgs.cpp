@@ -1,5 +1,8 @@
 #include <gtest/gtest.h>
 
+#include <soft_robot_msgs/CalibratePayloadAction.h>
+#include <soft_robot_msgs/ManagerState.h>
+#include <soft_robot_msgs/StartServo.h>
 #include <soft_robot_msgs/CartesianCorrectionStamped.h>
 #include <soft_robot_msgs/CartesianState.h>
 #include <soft_robot_msgs/GetTool.h>
@@ -89,4 +92,32 @@ TEST(Msgs, ManagementSrvResponsesDefaultToFailure) {
   soft_robot_msgs::SetToolBase::Request req;
   EXPECT_EQ(req.tool_x, 0.0);
   EXPECT_EQ(req.base_c, 0.0);
+}
+
+// The manager republishes the spec-11 state machine through ManagerState;
+// the numbering source stays ModeState.SYSTEM_* (no duplicated constants).
+TEST(Msgs, ManagerStateDefaultsToOfflineShape) {
+  soft_robot_msgs::ManagerState m;
+  EXPECT_EQ(m.system_state, soft_robot_msgs::ModeState::SYSTEM_OFFLINE);
+  EXPECT_FALSE(m.eki_connected);
+  EXPECT_FALSE(m.rsi_connected);
+  EXPECT_FALSE(m.sri_streaming);
+  EXPECT_FALSE(m.tool_synced);
+  EXPECT_FALSE(m.calibrating);
+  EXPECT_TRUE(m.active_controller.empty());
+}
+
+TEST(Msgs, CalibratePayloadResultCarriesFullFit) {
+  soft_robot_msgs::CalibratePayloadResult r;
+  EXPECT_FALSE(r.success);
+  EXPECT_EQ(r.gravity_n, 0.0);
+  EXPECT_EQ(r.bias_tz, 0.0);
+  EXPECT_EQ(r.r2_force, 0.0);
+  soft_robot_msgs::CalibratePayloadFeedback f;
+  EXPECT_EQ(f.pose_index, 0u);
+  EXPECT_TRUE(f.phase.empty());
+  soft_robot_msgs::StartServo::Request req;
+  EXPECT_EQ(req.mode, 0u);
+  soft_robot_msgs::StartServo::Response resp;
+  EXPECT_FALSE(resp.success);
 }

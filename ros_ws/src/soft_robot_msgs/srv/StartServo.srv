@@ -1,0 +1,8 @@
+# Start servo operation (spec section 11 SERVOING preconditions checked by
+# the manager). mode/profile use the ModeCommand constants; only
+# MODE_DIRECT_CARTESIAN and MODE_FORCE_COMPLIANCE are accepted.
+uint8 mode
+uint8 profile
+---
+bool success
+string message

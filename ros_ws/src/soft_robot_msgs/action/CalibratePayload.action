@@ -1,0 +1,23 @@
+# Payload calibration workflow (spec section 9), orchestrated by the
+# manager: drive the calibration poses in goal mode, average wrench
+# samples per pose, least-squares fit, persist payload.yaml.
+# Poses/settle/sample counts come from calibration.yaml (empty goal).
+---
+bool success
+string message              # failure phase on abort
+float64 gravity_n           # fitted payload weight [N]
+float64 com_x               # center of mass [m], sensor frame
+float64 com_y
+float64 com_z
+float64 bias_fx             # fitted sensor zero bias [N / Nm]
+float64 bias_fy
+float64 bias_fz
+float64 bias_tx
+float64 bias_ty
+float64 bias_tz
+float64 r2_force            # fit quality (legacy R1*R2 equivalent)
+float64 r2_torque
+---
+uint32 pose_index           # 0-based pose currently being processed
+uint32 pose_count
+string phase                # MOVING | SETTLING | SAMPLING | SOLVING | RETURNING

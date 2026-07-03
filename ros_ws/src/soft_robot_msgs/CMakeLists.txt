@@ -17,6 +17,7 @@ add_message_files(
   ModeState.msg
   SriStatus.msg
   EkiState.msg
+  ManagerState.msg
 )
 
 add_service_files(
@@ -25,11 +26,13 @@ add_service_files(
   SetFilter.srv
   SetEkiMode.srv
   SetToolBase.srv
+  StartServo.srv
 )
 
 add_action_files(
   FILES
   MoveToOrientation.action
+  CalibratePayload.action
 )
 
 generate_messages(
