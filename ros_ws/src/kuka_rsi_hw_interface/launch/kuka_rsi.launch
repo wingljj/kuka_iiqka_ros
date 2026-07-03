@@ -1,0 +1,7 @@
+<launch>
+  <node name="kuka_rsi_hw_interface" pkg="kuka_rsi_hw_interface"
+        type="kuka_rsi_hw_interface_node" output="screen">
+    <rosparam command="load"
+              file="$(find kuka_rsi_hw_interface)/config/kuka_rsi.yaml" />
+  </node>
+</launch>

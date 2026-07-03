@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>kuka_rsi_hw_interface</name>
+  <version>0.1.0</version>
+  <description>
+    ros_control hardware interface for the KUKA RSI realtime channel
+    (spec sections 5.1, 6.1, 12.2). Owns the RSI UDP/XML communication,
+    exposes Cartesian state and RKorr correction command interfaces, and
+    ships a KRC-side RSI mock (kuka_rsi_sim_server) for offline testing.
+  </description>
+  <maintainer email="dev@example.com">ljj</maintainer>
+  <license>Proprietary</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>roscpp</depend>
+  <depend>hardware_interface</depend>
+  <depend>controller_manager</depend>
+  <depend>realtime_tools</depend>
+  <depend>soft_robot_msgs</depend>
+  <build_depend>libtinyxml2-dev</build_depend>
+  <exec_depend>libtinyxml2</exec_depend>
+</package>
