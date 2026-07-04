@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>soft_robot_web_interface</name>
+  <version>0.1.0</version>
+  <description>
+    Browser operator interface (spec 5.7, 13): static ES-module frontend
+    served over plain HTTP, talking to the ROS graph through
+    rosbridge_websocket. No build chain, no external JS dependencies;
+    all dangerous operations go through the manager services/actions.
+  </description>
+  <maintainer email="dev@example.com">Soft Robot Team</maintainer>
+  <license>Proprietary</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <!-- exec-only: the package ships static files and a launch file. -->
+  <exec_depend>rosbridge_server</exec_depend>
+  <exec_depend>soft_robot_msgs</exec_depend>
+</package>
