@@ -10,7 +10,9 @@ that behaviour in at the world level:
       free-space gravity wrench is redistributed away from -Z (delta > 3N,
       matching T8's finding);
   (b) an identity mount keeps the pure-gravity load on -Z (sanity);
-  (c) a payload_com_m override is accepted and integrates without error.
+  (c) a payload_com_m override actually moves the COM: an off-origin COM puts
+      the gravity load on a lever arm, producing a sensor torque that is ~0
+      when the COM is centered (guards the body_sameframe no-op trap).
 
 Thresholds are physical: 2 kg payload -> ~19.6 N gravity load. A 90deg tilt
 moves the full load onto another axis (delta ~= 27.7 N here); 3N leaves a wide
@@ -63,16 +65,32 @@ def test_identity_mount_keeps_wrench_on_minus_z():
     assert 15.0 < abs(f_id[2]) < 25.0, 'magnitude should match ~2kg*g, got {:.2f}N'.format(f_id[2])
 
 
-def test_payload_com_override_accepted():
-    # The payload_com_m path edits body_ipos on the compiled model. In a static
-    # free-space hang it need not change the (site-frame) reading, but it must
-    # be accepted and integrate stably while still reading the gravity load.
+def test_payload_com_override_shifts_gravity_torque():
+    # The payload_com_m path edits body_ipos on the compiled model and clears
+    # body_sameframe so the edit is not silently ignored (same trap class as
+    # site_sameframe). Physical guard, NOT a tautology: a COM offset from the
+    # sensor origin puts the gravity load on a lever arm, so a static hang
+    # develops a gravity torque about the sensor that is ~0 when the COM is
+    # centered. If body_sameframe were left at 1 the edit would no-op and both
+    # readings would be identical (~0), failing the delta assertion.
+    def settled_torque(**kw):
+        w = make_world(wall_enabled=False, payload_mass=2.0, **kw)
+        w.set_target_pose(w.home_pose6)
+        w.step(400)
+        return np.array(w.get_sensor_wrench()[3:])  # (mx, my, mz) Nm
+
+    t_centered = settled_torque()                        # COM at body origin
+    t_offset = settled_torque(payload_com_m=(0.03, 0.0, 0.0))
+    # centered COM -> negligible gravity torque
+    assert np.linalg.norm(t_centered) < 0.1, \
+        'centered COM should read ~0 torque, got {}'.format(np.round(t_centered, 3))
+    # 0.03 m lever * ~19.6 N ~= 0.59 Nm must appear -> proves the edit took effect
+    assert np.linalg.norm(t_offset - t_centered) > 0.3, \
+        'COM offset must produce a gravity torque, delta={:.3f}Nm'.format(
+            np.linalg.norm(t_offset - t_centered))
+    # force magnitude unchanged by a pure COM shift (still ~2kg*g)
     w = make_world(wall_enabled=False, payload_mass=2.0,
                    payload_com_m=(0.03, 0.0, 0.0))
     bid = w.model.body('payload').id
     assert np.allclose(w.model.body_ipos[bid], (0.03, 0.0, 0.0)), \
         'payload_com_m should be written to body_ipos'
-    w.set_target_pose(w.home_pose6)
-    w.step(400)
-    fmag = np.linalg.norm(w.get_sensor_wrench()[:3])
-    assert 15.0 < fmag < 25.0, 'gravity load still read after com shift, got {:.2f}N'.format(fmag)

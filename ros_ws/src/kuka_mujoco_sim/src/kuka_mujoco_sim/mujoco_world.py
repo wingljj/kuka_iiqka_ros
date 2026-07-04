@@ -48,6 +48,12 @@ class MujocoWorld:
         if payload_com_m is not None:
             bid = model.body('payload').id
             model.body_ipos[bid] = np.asarray(payload_com_m, dtype=float)
+            # The compiler sets body_sameframe=1 because the payload's inertial
+            # pos is identity relative to its body frame; that flag makes the
+            # dynamics reuse the body frame and ignore a post-compile body_ipos
+            # edit (same trap as site_sameframe above), so the COM shift would
+            # silently no-op. Clear it so the edited COM actually takes effect.
+            model.body_sameframe[bid] = 0
         if mount_abc_deg != (0, 0, 0):
             sid = model.site('ft_site').id
             quat = fc.abc_deg_to_quat(*mount_abc_deg)

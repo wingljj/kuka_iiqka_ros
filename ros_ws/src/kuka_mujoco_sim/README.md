@@ -134,6 +134,11 @@ following require confirmation on hardware and are tracked in
 
 Soft-real-time simulation is not the controller's hard-real-time path.
 
+Package-specific deployment gaps (SRI `sendall`-under-lock stall, `recv`
+timeout, `_default_model` install-space path, wall contact magnitude, the
+`*_sameframe` post-compile-edit trap) are tracked in
+[`docs/superpowers/followups/2026-07-04-mujoco-validation-followups.md`](../../../docs/superpowers/followups/2026-07-04-mujoco-validation-followups.md).
+
 ## MJCF tunable points (`models/kuka_tcp_scene.xml`)
 
 - **Weld stiffness** `equality/weld solref="0.008 1"` `solimp="0.99 0.999 0.001"`
@@ -144,7 +149,9 @@ Soft-real-time simulation is not the controller's hard-real-time path.
   contact standoff. Toggled off via `wall_enabled` (contype/conaffinity → 0).
 - **Payload mass / COM** — `body name="payload"` default `mass="1.0"`; overridden
   at load time by `payload_mass` (→ `body_mass`) and `payload_com_m`
-  (→ `body_ipos`). Launch default is 1.0 kg; scenarios use 2.0 kg.
+  (→ `body_ipos`, which also clears `body_sameframe` so the COM shift is not a
+  silent no-op — same trap class as `site_sameframe`). Launch default is 1.0 kg;
+  scenarios use 2.0 kg.
 - **Sensor mount pose** — `site name="ft_site"` default identity; `mount_abc_deg`
   edits `site_quat` at load time (and clears `site_sameframe` so the edit is not
   a no-op — see `mujoco_world._load_spec`).
