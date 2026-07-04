@@ -1,0 +1,53 @@
+<!-- models/kuka_tcp_scene.xml -->
+<mujoco model="kuka_tcp_scene">
+  <option timestep="0.004" gravity="0 0 -9.81" integrator="implicitfast"/>
+  <compiler angle="radian"/>
+
+  <worldbody>
+    <light pos="0 0 3" dir="0 0 -1"/>
+    <geom name="floor" type="plane" size="5 5 0.1" pos="0 0 0" rgba="0.8 0.9 0.8 1"/>
+
+    <!-- Mocap target: driven by the RSI endpoint to the corrected TCP pose. -->
+    <body name="target" mocap="true" pos="0 0 0.8">
+      <geom type="box" size="0.01 0.01 0.01" rgba="0 1 0 0.3" contype="0" conaffinity="0"/>
+    </body>
+
+    <!-- Floating end-body (the TCP flange). Free joint = 6 DOF. -->
+    <body name="flange" pos="0 0 0.8">
+      <freejoint name="flange_free"/>
+      <inertial pos="0 0 0" mass="1.0" diaginertia="0.01 0.01 0.01"/>
+      <geom name="flange_geom" type="cylinder" size="0.03 0.02" rgba="0.5 0.5 0.9 1"/>
+
+      <!-- Payload (workpiece) rigidly attached below the flange. Mass edited at
+           load time; com via ipos. The FORCE/TORQUE sensor site lives on the
+           payload body so the sensor's cfrc_int isolates payload gravity +
+           contact reaction through the tip (see mujoco_world.get_sensor_wrench). -->
+      <body name="payload" pos="0 0 -0.05">
+        <inertial pos="0 0 0" mass="1.0" diaginertia="0.001 0.001 0.001"/>
+        <!-- Force/torque sensor site (mount pose set at load time by editing). -->
+        <site name="ft_site" pos="0 0 0" size="0.005" rgba="1 0 0 1"/>
+        <geom name="payload_geom" type="box" size="0.02 0.02 0.03" rgba="0.9 0.7 0.2 1"/>
+        <!-- Contact tip that touches the wall (points along +X toward the wall). -->
+        <geom name="tip" type="sphere" size="0.01" pos="0.04 0 0" rgba="0.9 0.2 0.2 1"/>
+      </body>
+    </body>
+
+    <!-- Wall along +X, just past the tip's home position so a small push makes
+         contact. Toggled off (contype/conaffinity=0) at load time. -->
+    <body name="wall" pos="0.075 0 0.75">
+      <geom name="wall_geom" type="box" size="0.02 0.3 0.3" rgba="0.7 0.7 0.7 1"/>
+    </body>
+  </worldbody>
+
+  <!-- Weld the flange to the mocap target: elastic tracking via solref/solimp.
+       Stiff so free-space tracking error stays sub-mm under payload gravity. -->
+  <equality>
+    <weld name="track" body1="flange" body2="target"
+          solref="0.008 1" solimp="0.99 0.999 0.001"/>
+  </equality>
+
+  <sensor>
+    <force name="ft_force" site="ft_site"/>
+    <torque name="ft_torque" site="ft_site"/>
+  </sensor>
+</mujoco>
