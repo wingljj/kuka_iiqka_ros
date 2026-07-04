@@ -39,8 +39,8 @@ def parse_sen_frame(data):
     try:
         vals = tuple(float(rkorr.attrib[k]) for k in ('X', 'Y', 'Z', 'A', 'B', 'C'))
         ipoc_val = int(ipoc.text.strip())
+        stop_el = root.find('Stop')
+        stop = int(stop_el.attrib.get('S', '0')) if stop_el is not None else 0
     except (KeyError, ValueError):
         return None
-    stop_el = root.find('Stop')
-    stop = int(stop_el.attrib.get('S', '0')) if stop_el is not None else 0
     return {'rkorr': vals, 'stop': stop, 'ipoc': ipoc_val}

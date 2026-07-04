@@ -33,6 +33,14 @@ def test_parse_sen_frame_garbage():
     assert parse_sen_frame(b'not xml') is None
 
 
+def test_parse_sen_frame_malformed_stop():
+    # A non-integer Stop S must yield None, not raise (return-None-on-any-failure).
+    sen = (b'<Sen Type="ROS">'
+           b'<RKorr X="0" Y="0" Z="0" A="0" B="0" C="0"/>'
+           b'<Stop S="bad"/><IPOC>1</IPOC></Sen>')
+    assert parse_sen_frame(sen) is None
+
+
 def test_build_then_parse_via_rob_is_not_sen():
     # build_rob_frame output is <Rob>, parse_sen_frame must reject it.
     b = build_rob_frame((0, 0, 800, 0, 0, 0), 1000)
