@@ -1,0 +1,10 @@
+cmake_minimum_required(VERSION 3.0.2)
+project(kuka_mujoco_sim)
+find_package(catkin REQUIRED COMPONENTS rospy geometry_msgs soft_robot_msgs)
+catkin_python_setup()
+catkin_package()
+
+if(CATKIN_ENABLE_TESTING)
+  find_package(rostest REQUIRED)
+  catkin_add_nosetests(test)
+endif()
