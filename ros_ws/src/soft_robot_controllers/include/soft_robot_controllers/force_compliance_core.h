@@ -35,7 +35,7 @@ struct ForceComplianceParams {
 // All-zero == identity == legacy behavior.
 struct ToolFrameConfig {
   double tool_a{0}, tool_b{0}, tool_c{0};     // $TOOL A/B/C [deg], from EKI
-  double mount_a{0}, mount_b{0}, mount_c{0};  // sensor_to_flange rpy [deg]
+  double mount_a{0}, mount_b{0}, mount_c{0};  // sensor_to_flange A/B/C = Rz/Ry/Rx [deg]
 };
 
 struct ComplianceInput {

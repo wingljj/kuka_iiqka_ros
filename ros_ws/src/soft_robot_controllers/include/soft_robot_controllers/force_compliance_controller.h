@@ -88,7 +88,7 @@ class ForceComplianceController
   realtime_tools::RealtimeBuffer<FaultFlag> fault_buf_;
   realtime_tools::RealtimeBuffer<ToolSample> tool_buf_;
   std::uint64_t mode_seq_{0};  // producer side (subscriber thread / tests)
-  double mount_a_{0}, mount_b_{0}, mount_c_{0};  // sensor_to_flange_rpy [deg]
+  double mount_a_{0}, mount_b_{0}, mount_c_{0};  // sensor_to_flange_abc, KUKA A/B/C = Rz/Ry/Rx [deg]
 
   ros::Subscriber wrench_sub_;
   ros::Subscriber mode_sub_;

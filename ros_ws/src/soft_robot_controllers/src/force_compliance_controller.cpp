@@ -81,14 +81,14 @@ bool ForceComplianceController::init(
   loadPayload(controller_nh, payload);
   double wrench_timeout = 0.012;
   controller_nh.param("wrench_timeout", wrench_timeout, wrench_timeout);
-  std::vector<double> mount_rpy{0.0, 0.0, 0.0};
-  controller_nh.param("sensor_to_flange_rpy", mount_rpy, mount_rpy);
-  if (mount_rpy.size() == 3) {
-    mount_a_ = mount_rpy[0];
-    mount_b_ = mount_rpy[1];
-    mount_c_ = mount_rpy[2];
+  std::vector<double> mount_abc{0.0, 0.0, 0.0};
+  controller_nh.param("sensor_to_flange_abc", mount_abc, mount_abc);
+  if (mount_abc.size() == 3) {
+    mount_a_ = mount_abc[0];
+    mount_b_ = mount_abc[1];
+    mount_c_ = mount_abc[2];
   } else {
-    ROS_WARN("sensor_to_flange_rpy must have 3 elements; using identity");
+    ROS_WARN("sensor_to_flange_abc must have 3 elements; using identity");
   }
   drag.safety = safety;
   precision.safety = safety;
