@@ -117,6 +117,47 @@ TEST(FccToolFrame, GravityCompensatedInSensorFrameUnderRotation) {
   EXPECT_EQ(out.correction.y, 0.0);
 }
 
+TEST(FccToolFrame, RetareRecomputeUnderNonIdentityOrientation) {
+  // 自动置零在"非恒等参考姿态 + 工具带旋转"下开火:吸收进 bias 的残差
+  // 与 tare 后立即重算的 compensated 都必须是传感器系量。
+  // 场景:参考姿态 C=90(R_bt=Rx(90)),$TOOL A=90(R_tcp_sensor=Rz(-90))
+  // => r_base_sensor = Rx(90)·Rz(-90),重力在传感器系的投影
+  // g_s = (Rx(90)Rz(-90))^T·(0,0,-10) = (10,0,0)。
+  // 静载读数 raw = g_s + 5N 传感器 x 向漂移 = (15,0,0),残差 (5,0,0)。
+  // 若错误地在 BASE 系吸收残差,bias 会落在 fz(-5)而非 fx;
+  // 若 tare 后不用当前 r_base_sensor 重算,compensated 停留在 (5,0,0)。
+  ForceComplianceCore core;
+  ForceComplianceParams p = simpleParams();
+  p.payload.gravity_n = 10.0;
+  p.retare.enabled = true;
+  p.retare.orientation_tol_deg = 1.0;
+  p.retare_rearm_factor = 2.0;
+  core.configure(p);
+  ToolFrameConfig tf;
+  tf.tool_a = 90.0;
+  sfc::CartesianState start;
+  start.c = 90.0;
+  core.activate(start, tf);
+  ComplianceInput in = freshInput();
+  in.raw.fx = 15.0;
+  // 离开参考姿态(5 deg > rearm 2 deg)以武装边沿触发。
+  in.state.c = 95.0;
+  EXPECT_FALSE(core.update(in, kDt).tared);
+  // 回到参考姿态:开火一次,残差按传感器系进 bias,重算后归零。
+  in.state.c = 90.0;
+  const ComplianceOutput fired = core.update(in, kDt);
+  EXPECT_TRUE(fired.tared);
+  EXPECT_NEAR(core.payload().bias.fx, 5.0, 1e-9);
+  EXPECT_NEAR(core.payload().bias.fy, 0.0, 1e-9);
+  EXPECT_NEAR(core.payload().bias.fz, 0.0, 1e-9);
+  EXPECT_NEAR(fired.compensated.forceNorm(), 0.0, 1e-9);
+  // 后续周期:同一读数下 compensated 保持归零,不再重复开火。
+  const ComplianceOutput after = core.update(in, kDt);
+  EXPECT_FALSE(after.tared);
+  EXPECT_NEAR(after.compensated.forceNorm(), 0.0, 1e-9);
+  EXPECT_EQ(after.correction.x, 0.0);
+}
+
 TEST(FccToolFrame, MountOffsetChangesGravityFrame) {
   // 安装偏差 mount C=90(传感器相对法兰绕 X 转 90),机器人恒等姿态,
   // 工具恒等 => R_tcp_sensor = Rx(90), r_base_sensor = Rx(90)。
