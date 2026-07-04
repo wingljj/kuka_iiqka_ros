@@ -24,18 +24,6 @@ class ScenarioResult:
         return all(ok for _, ok, _ in self.checks) and len(self.checks) > 0
 
 
-def _net_external_force(world, gravity_n):
-    """Sensor wrench minus modeled gravity load = residual external force.
-
-    In free space with correct compensation this is ~0. gravity_n is the
-    payload weight the (simulated) compensator would remove."""
-    fx, fy, fz, *_ = world.get_sensor_wrench()
-    # subtract gravity magnitude along the current gravity projection: here we
-    # approximate by comparing the raw magnitude, since the scenario keeps the
-    # controller's compensation external. See README for the exact protocol.
-    return np.array([fx, fy, fz])
-
-
 def run_free_space_zero_force(world_factory):
     r = ScenarioResult('free_space_zero_force')
     w = world_factory(wall_enabled=False, payload_mass=2.0)
