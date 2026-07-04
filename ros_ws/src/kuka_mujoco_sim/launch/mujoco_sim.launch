@@ -1,0 +1,63 @@
+<launch>
+  <!-- MuJoCo closed loop (spec 15.3 variant): the MuJoCo physics node
+       replaces the two naive mocks (kuka_rsi_sim_server + sri_mock_server)
+       from sim.launch; the EKI KRC mock and all three real drivers
+       (RSI hw_interface, EKI bridge, SRI driver) plus the manager are
+       reused UNCHANGED. Fixed ports from the package yamls. -->
+  <arg name="gui" default="false"/>
+  <arg name="payload_mass" default="1.0"/>
+  <arg name="mount_abc" default="[0.0, 0.0, 0.0]"/>
+  <arg name="wall_enabled" default="true"/>
+
+  <rosparam command="load"
+            file="$(find soft_robot_controllers)/config/soft_robot_controllers.yaml"/>
+  <!-- Node-keyed yamls load at ROOT level (see soft_robot.launch note). -->
+  <rosparam command="load"
+            file="$(find kuka_eki_bridge)/config/kuka_eki.yaml"/>
+  <rosparam command="load"
+            file="$(find sri_force_torque_driver)/config/sri_ft.yaml"/>
+  <rosparam command="load"
+            file="$(find soft_force_control_manager)/config/manager.yaml"/>
+  <rosparam command="load"
+            file="$(find soft_force_control_manager)/config/calibration.yaml"/>
+
+  <node pkg="kuka_rsi_hw_interface" type="kuka_rsi_hw_interface_node"
+        name="kuka_rsi_hw_interface" output="screen">
+    <rosparam command="load"
+              file="$(find kuka_rsi_hw_interface)/config/kuka_rsi.yaml"/>
+    <param name="listen_ip" value="127.0.0.1"/>
+  </node>
+
+  <!-- MuJoCo physics: RSI UDP client + SRI TCP server. Replaces
+       kuka_rsi_sim_server AND sri_mock_server. -->
+  <node pkg="kuka_mujoco_sim" type="sim_node" name="kuka_mujoco_sim"
+        output="screen">
+    <param name="gui" value="$(arg gui)"/>
+    <param name="payload_mass" value="$(arg payload_mass)"/>
+    <rosparam param="mount_abc" subst_value="true">$(arg mount_abc)</rosparam>
+    <param name="wall_enabled" value="$(arg wall_enabled)"/>
+    <param name="rsi_target_port" value="49152"/>
+    <param name="sri_listen_port" value="4008"/>
+  </node>
+
+  <!-- EKI: reuse existing mock unchanged. -->
+  <node pkg="soft_robot_bringup" type="run_mock.sh"
+        name="eki_mock_server" output="screen"
+        args="kuka_eki_bridge eki_mock_server --port 54600 --heartbeat-ms 100"/>
+  <node pkg="kuka_eki_bridge" type="eki_bridge_node"
+        name="kuka_eki_bridge" output="screen">
+    <param name="kuka_ip" value="127.0.0.1"/>
+  </node>
+
+  <node pkg="sri_force_torque_driver" type="sri_driver_node"
+        name="sri_ft_driver" output="screen">
+    <param name="sensor_ip" value="127.0.0.1"/>
+  </node>
+
+  <node pkg="soft_force_control_manager" type="soft_robot_manager"
+        name="soft_robot_manager" output="screen">
+    <param name="payload_file" value="/tmp/soft_robot_sim_payload.yaml"/>
+    <!-- Sim speed-up: keep all 8 poses but cut the averaging window. -->
+    <param name="calibration/samples_per_pose" value="20"/>
+  </node>
+</launch>
