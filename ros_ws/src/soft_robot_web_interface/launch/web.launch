@@ -1,0 +1,16 @@
+<launch>
+  <!-- Optional web UI layer (spec 5.7/13). Independent entry point: run
+       it NEXT TO soft_robot.launch or sim.launch (decision 12); neither
+       includes the other so the core stacks stay launchable on machines
+       without rosbridge installed. -->
+  <arg name="rosbridge_port" default="9090"/>
+  <arg name="http_port" default="8080"/>
+
+  <include file="$(find rosbridge_server)/launch/rosbridge_websocket.launch">
+    <arg name="port" value="$(arg rosbridge_port)"/>
+  </include>
+
+  <node pkg="soft_robot_web_interface" type="serve_www.sh"
+        name="soft_robot_web_server" output="screen"
+        args="$(arg http_port)"/>
+</launch>
