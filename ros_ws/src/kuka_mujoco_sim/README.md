@@ -66,7 +66,7 @@ read this before trusting any single command.
 |-------|---------|:---:|------------------------|
 | **1. Unit (offline)** | `pytest test/` | no | Pure logic: RSI/SRI frame encode-decode, `frame_conventions` coordinate transforms, endpoint handshake/integration logic, the scenario report framework. Deterministic, fast, no physics. |
 | **2. Physics scenarios** | `scripts/run_scenarios.py` | yes | **World-level physical observables**: gravity projection changes with orientation, contact reaction appears, mount offset redistributes the wrench, uncompensated gravity is observable. Asserts on force / displacement / direction of the *physics world only*. |
-| **3. End-to-end closed loop** | `roslaunch kuka_mujoco_sim mujoco_sim.launch` | yes + ROS | The **real controller in the loop**: RSI does not fault, the force-control manager consumes the wrench and produces corrections that move the flange. Observed live / via GUI. This is the only layer that exercises the full force→controller→motion chain. |
+| **3. End-to-end closed loop** | `roslaunch kuka_mujoco_sim mujoco_sim.launch` + `rosrun kuka_mujoco_sim e2e_compliance_smoke.py` | yes + ROS | The **real controller in the loop**: RSI does not fault, the force-control manager consumes the wrench and produces corrections that move the flange. The `e2e_compliance_smoke.py` script automates it (start servo → inject drag → assert the flange moves); also observable live via GUI. This is the only layer that exercises the full force→controller→motion chain. |
 
 ### Honest note on what layer 2 does *not* prove
 
@@ -95,11 +95,83 @@ python3 scripts/run_scenarios.py
 roslaunch kuka_mujoco_sim mujoco_sim.launch
 # with options:
 roslaunch kuka_mujoco_sim mujoco_sim.launch gui:=true payload_mass:=2.0 mount_abc:="[0,90,0]"
+# automated force->motion check (self-launches the stack, asserts the flange moves):
+rosrun kuka_mujoco_sim e2e_compliance_smoke.py
 ```
 
 Launch args: `gui` (open the MuJoCo viewer), `payload_mass` (kg, default 1.0),
 `mount_abc` (sensor mount A/B/C in degrees, default `[0,0,0]`), `wall_enabled`
-(contact wall on/off, default true).
+(contact wall on/off, default true). `payload_mass` and `mount_abc` are fed to
+**both** the MuJoCo world and the controller (see next section).
+
+## 让它真正动起来 (making the arm actually move)
+
+If you `roslaunch ... payload_mass:=2.0 mount_abc:="[0,90,0]"`, start servo, and
+drag the end-effector but **nothing moves** while the wrench clearly reads a
+force — this section is why, and how it is fixed.
+
+### The parameter passthrough
+
+The MuJoCo world and the controller must agree on the payload. `mujoco_sim.launch`
+therefore injects, right after loading `soft_robot_controllers.yaml`, the same
+values it hands the physics node:
+
+```xml
+<param  name="/force_compliance_controller/payload/gravity_n"
+        value="$(eval arg('payload_mass') * 9.81)"/>
+<rosparam param="/force_compliance_controller/sensor_to_flange_abc"
+          subst_value="true">$(arg mount_abc)</rosparam>
+```
+
+Without this, the controller keeps its yaml default `gravity_n = 0`
+("uncalibrated") and never subtracts the payload's standing gravity. That
+constant offset (e.g. a 2 kg payload under a `[0,90,0]` mount projects **19.62 N
+onto +X**) then gets **learned into the drag profile's adaptive deadband** (2 s
+window, +5 N margin → ~24.6 N). Your hand push nets against a ~24 N floor, never
+crosses it, `RKorr = 0`, and the arm looks dead while the sensor still shows
+force. `rosout` says it plainly: `payload not calibrated (gravity_n == 0):
+zero-only mode`.
+
+`sensor_to_flange_abc` passes through **verbatim** — the MuJoCo site-frame
+reading and the controller's compensation term are provably equal for every
+mount angle (`test/test_gravity_equivalence.py`; roscpp parses the integer list
+into `vector<double>` fine, confirmed by the `FORCE_COMPLIANCE frame locked:
+... mount A/B/C=[0.000 90.000 0.000]` echo).
+
+### It moves like a slow creep, not a 1:1 grab
+
+Force compliance is **velocity-type**: `RKorr per cycle = gain × deadzone(net
+force) × dt`. The drag profile uses `gain_translation = 0.4 (mm/s)/N`, capped at
+`max_speed_translation = 30 mm/s`. So a ~35 N net push moves the TCP at only
+~14 mm/s. **Watch the green mocap box drift** over a couple of seconds — do not
+expect the end-effector to snap to your cursor. The e2e smoke measures ≈ 70 mm
+of travel over a 5 s, 40 N drag, matching `0.4 × (40−deadband)`.
+
+### Prove it without eyes
+
+```bash
+rosrun kuka_mujoco_sim e2e_compliance_smoke.py     # self-launches the stack
+```
+
+It brings up the loop, starts servo in `FORCE_COMPLIANCE`, waits for the
+adaptive deadband to settle at rest, injects a `+X` drag on
+`/kuka_mujoco_sim/drag_force` (a `geometry_msgs/Wrench`), and asserts the flange
+position (published on `/kuka_mujoco_sim/flange_position`) travels past 5 mm.
+Exit codes are honest: `0` PASS, `1` came-up-but-did-not-move, `2` NOT-RUN
+(environment could not bring the stack up). Config is `mount=[0,0,0]` +
+`payload=2.0 kg` to nail the main-chain closure; non-identity mount alignment is
+covered offline by `test/test_gravity_equivalence.py`.
+
+### Still not moving? checklist
+
+1. `rostopic echo /soft_robot/mode_state` → `system_state: 3` (SERVOING). If not,
+   the gate is not engaged — the controller zeroes output regardless of force.
+2. `rosparam get /force_compliance_controller/payload/gravity_n` → non-zero
+   (should be `payload_mass × 9.81`). Zero means the passthrough did not load.
+3. `rosout` must **not** show `payload not calibrated (gravity_n == 0)`.
+4. Give it a few seconds of push and watch the **green** box — it creeps.
+
+
 
 ## Assertion thresholds and their rationale
 
@@ -138,6 +210,11 @@ Package-specific deployment gaps (SRI `sendall`-under-lock stall, `recv`
 timeout, `_default_model` install-space path, wall contact magnitude, the
 `*_sameframe` post-compile-edit trap) are tracked in
 [`docs/superpowers/followups/2026-07-04-mujoco-validation-followups.md`](../../../docs/superpowers/followups/2026-07-04-mujoco-validation-followups.md).
+
+The force-loop parameter-passthrough fix (why the arm now moves) and its
+remaining honest gaps — COM offset / `bias` / the 8-pose calibration chain not
+yet verified in-loop, velocity-type creep, INIT-time param read — are tracked in
+[`docs/superpowers/followups/2026-07-05-mujoco-force-loop-fix-followups.md`](../../../docs/superpowers/followups/2026-07-05-mujoco-force-loop-fix-followups.md).
 
 ## MJCF tunable points (`models/kuka_tcp_scene.xml`)
 

@@ -11,6 +11,21 @@
 
   <rosparam command="load"
             file="$(find soft_robot_controllers)/config/soft_robot_controllers.yaml"/>
+
+  <!-- Force-loop bridge: feed the SAME payload gravity + sensor mount to the
+       CONTROLLER that we hand the MuJoCo world, OVERRIDING the yaml defaults
+       (gravity_n=0 = "uncalibrated"). Without this the controller never
+       compensates the payload's standing gravity; that ~m*g offset gets
+       learned into the drag profile's adaptive deadband, so a hand push can
+       never net past it and the arm looks dead. These two lines load AFTER
+       the yaml above, so they win. sensor_to_flange_abc passes through
+       VERBATIM (no transform); proven equivalent to the MuJoCo site frame
+       for every mount angle in test/test_gravity_equivalence.py. -->
+  <param name="/force_compliance_controller/payload/gravity_n"
+         value="$(eval arg('payload_mass') * 9.81)"/>
+  <rosparam param="/force_compliance_controller/sensor_to_flange_abc"
+            subst_value="true">$(arg mount_abc)</rosparam>
+
   <!-- Node-keyed yamls load at ROOT level (see soft_robot.launch note). -->
   <rosparam command="load"
             file="$(find kuka_eki_bridge)/config/kuka_eki.yaml"/>

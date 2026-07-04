@@ -5,6 +5,8 @@ import os
 import socket
 import rospy
 
+from geometry_msgs.msg import Wrench, PointStamped
+
 from .mujoco_world import MujocoWorld
 from .rsi_endpoint import RsiEndpoint
 from .sri_endpoint import SriEndpoint
@@ -30,6 +32,19 @@ class SimNode:
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.settimeout(0.05)
+        # Optional programmatic hand-drag: publish a geometry_msgs/Wrench on
+        # ~drag_force (world frame, N/Nm) to inject a persistent external load
+        # on the payload. Used by the end-to-end compliance smoke to prove the
+        # force->controller->motion chain without a human at the GUI. Latched
+        # into _drag and applied every physics step until changed.
+        self._drag = None
+        rospy.Subscriber('~drag_force', Wrench, self._on_drag, queue_size=1)
+        # Publish the flange (TCP) position each loop so motion is observable
+        # headlessly (no GUI). Units are mm, matching the RSI pose6 convention;
+        # this is what the end-to-end compliance smoke watches to confirm the
+        # green mocap target actually moved under an applied force.
+        self._pose_pub = rospy.Publisher('~flange_position', PointStamped,
+                                          queue_size=1)
         self._viewer = None
         if self._gui:
             import mujoco.viewer
@@ -41,17 +56,27 @@ class SimNode:
         return os.path.normpath(
             os.path.join(here, '..', '..', 'models', 'kuka_tcp_scene.xml'))
 
+    def _on_drag(self, msg):
+        self._drag = (msg.force.x, msg.force.y, msg.force.z,
+                      msg.torque.x, msg.torque.y, msg.torque.z)
+
     def spin(self):
         rate = rospy.Rate(250)
         while not rospy.is_shutdown():
             actual = self.world.get_actual_pose()
             self.rsi.send_state(self.sock, actual)
+            msg = PointStamped()
+            msg.header.stamp = rospy.Time.now()
+            msg.point.x, msg.point.y, msg.point.z = actual[0], actual[1], actual[2]
+            self._pose_pub.publish(msg)
             try:
                 data, _ = self.sock.recvfrom(4096)
                 self.rsi.apply_reply(data)
             except socket.timeout:
                 pass
             self.world.set_target_pose(self.rsi.pose_target6)
+            if self._drag is not None:
+                self.world.apply_external_force(*self._drag)
             self.world.step(1)
             self.sri.set_wrench(self.world.get_sensor_wrench())
             self.sri.send_frame_if_streaming()
