@@ -17,6 +17,11 @@ pre-judge the gates).
 Open `http://<host>:8080`. The `ws-status` badge turns green when the
 rosbridge socket is up; the client reconnects automatically every 1 s.
 
+If 9090 is taken on the host (e.g. a local proxy), start with
+`web.launch rosbridge_port:=9091` and open `http://<host>:8080/?ws=9091`
+— the `?ws=<port>` query overrides the frontend's rosbridge port (the
+integration probe takes the same override via `ROSBRIDGE_PORT`).
+
 ## Requirements
 
 - `ros-noetic-rosbridge-server` (apt). Offline cells: build a deb bundle

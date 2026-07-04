@@ -10,7 +10,11 @@ import {
 import { TraceBuffer, drawChart } from './wrench_chart.js';
 
 const $ = (id) => document.getElementById(id);
-const wsUrl = 'ws://' + location.hostname + ':9090';
+// rosbridge port defaults to 9090; override with ?ws=<port> when the
+// default collides with another service (e.g. a local proxy) and
+// web.launch was started with rosbridge_port:=<port>.
+const wsPort = new URLSearchParams(location.search).get('ws') || '9090';
+const wsUrl = 'ws://' + location.hostname + ':' + wsPort;
 const ros = new RosClient(wsUrl, (url) => new WebSocket(url));
 
 let lastMgr = null;
