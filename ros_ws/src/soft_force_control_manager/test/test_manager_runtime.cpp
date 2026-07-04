@@ -77,6 +77,9 @@ struct MockOps {
   sfc::PayloadFitResult payload_fit;
   int payload_applied = 0;
   ManagerRuntime* rt = nullptr;   // for feeding back from ekiStartRsi
+  // Plan 6 Task 3 (I-2): invoked from the switch hook AFTER a successful
+  // switch, to sabotage the verdict window deterministically.
+  std::function<void()> sabotage_on_switch;
 
   void push(const std::string& s) {
     std::lock_guard<std::mutex> lock(m);
@@ -116,14 +119,22 @@ struct MockOps {
     o.switchControllers = [this](const std::string& start,
                                  const std::string& stop) {
       push("switch:" + start + "/" + stop);
-      std::lock_guard<std::mutex> lock(m);
-      if (!switch_ok) return false;
-      if (strict) {  // controller_manager STRICT: no-op entries are errors
-        if (!stop.empty() && running.count(stop) == 0) return false;
-        if (!start.empty() && running.count(start) != 0) return false;
+      std::function<void()> sab;
+      {
+        std::lock_guard<std::mutex> lock(m);
+        if (!switch_ok) return false;
+        if (strict) {  // controller_manager STRICT: no-op entries are errors
+          if (!stop.empty() && running.count(stop) == 0) return false;
+          if (!start.empty() && running.count(start) != 0) return false;
+        }
+        if (!stop.empty()) running.erase(stop);
+        if (!start.empty()) running.insert(start);
+        if (!start.empty()) {   // sabotage fires on the arming switch only
+          sab = sabotage_on_switch;
+          sabotage_on_switch = nullptr;  // one-shot
+        }
       }
-      if (!stop.empty()) running.erase(stop);
-      if (!start.empty()) running.insert(start);
+      if (sab) sab();   // outside the mock mutex (calls back into rt)
       return true;
     };
     o.publishMode = [this](std::uint8_t mode, std::uint8_t profile) {
@@ -621,5 +632,59 @@ TEST(ManagerRuntime, StartServoPreClearsResidueFault) {
     }
     EXPECT_LT(i_reset, i_start);
   }
+  rt.stop();
+}
+
+// ---- Plan 6 Task 3: I-2 startServo final-verdict rollback ----
+
+TEST(ManagerRuntime, StartVerdictRejectionRollsBackFully) {
+  // requestStart's final verdict sits after START_RSI + controller
+  // switch + mode publish. If READY was lost inside that window the
+  // rejection branch must undo all three: mode back to IDLE, target
+  // controller stopped, RSI program stopped (it was started here).
+  MockOps mock;
+  ManagerRuntime rt{fastConfig(), mock.ops()};
+  mock.rt = &rt;
+  ASSERT_TRUE(rt.start());
+  driveToReady(rt);
+  // Sabotage the verdict window: the switch hook drops SRI streaming
+  // right before requestStart re-checks readyConditions.
+  mock.sabotage_on_switch = [&] { rt.feedSriStatus(false); };
+  const CommandResult r = rt.startServo(2, 0);
+  EXPECT_FALSE(r.success);
+  // Rollback trail: IDLE republished after the target-mode publish,
+  // the started controller stopped again, and stop_rsi issued.
+  EXPECT_TRUE(mock.logged("mode:0/0"));
+  EXPECT_TRUE(mock.logged("switch:/force_compliance_controller"));
+  EXPECT_TRUE(mock.logged("stop_rsi"));
+  // And the runtime is not left half-armed:
+  const sfm::ManagerSnapshot s = rt.snapshot();
+  EXPECT_TRUE(s.active_controller.empty());
+  EXPECT_EQ(s.mode, 0u);
+  EXPECT_NE(s.state, SystemState::SERVOING);
+  rt.stop();
+}
+
+TEST(ManagerRuntime, StartVerdictRollbackSkipsStopRsiWhenPreActive) {
+  // When RSI was already active before this start (rsi_active=true), the
+  // rollback must NOT stop the RSI program it did not start.
+  MockOps mock;
+  ManagerRuntime rt{fastConfig(), mock.ops()};
+  mock.rt = &rt;
+  ASSERT_TRUE(rt.start());
+  rt.setControllersLoaded(true);
+  EkiFeed f = ekiUp();
+  f.rsi_active = true;            // pre-existing RSI session
+  rt.feedEkiState(f);
+  rt.feedSriStatus(true);
+  rt.feedRsiState(true, false);
+  ASSERT_TRUE(waitFor(
+      [&] { return rt.snapshot().state == SystemState::READY; }, 2000));
+  mock.sabotage_on_switch = [&] { rt.feedSriStatus(false); };
+  const CommandResult r = rt.startServo(2, 0);
+  EXPECT_FALSE(r.success);
+  EXPECT_FALSE(mock.logged("start_rsi"));
+  EXPECT_FALSE(mock.logged("stop_rsi"));
+  EXPECT_TRUE(mock.logged("switch:/force_compliance_controller"));
   rt.stop();
 }

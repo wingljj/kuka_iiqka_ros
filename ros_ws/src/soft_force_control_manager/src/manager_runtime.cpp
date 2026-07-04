@@ -265,13 +265,25 @@ CommandResult ManagerRuntime::startServo(std::uint8_t mode,
     return {false, "controller switch failed"};
   if (ops_.publishMode) ops_.publishMode(mode, profile);
 
-  std::lock_guard<std::mutex> lock(mutex_);
-  const Verdict v = core_.requestStart(healthLocked(nowS()));
-  if (!v.accepted) return {false, v.reason};
-  mode_ = mode;
-  profile_ = profile;
-  active_controller_ = target;
-  return {true, ""};
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    const Verdict v = core_.requestStart(healthLocked(nowS()));
+    if (v.accepted) {
+      mode_ = mode;
+      profile_ = profile;
+      active_controller_ = target;
+      return {true, ""};
+    }
+    // fallthrough to rollback with the reason captured
+    rollback_reason_ = v.reason;
+  }
+  // I-2 rollback (Plan 6 Task 3): the final verdict rejected after the
+  // world was already armed. Undo in reverse order; every op is
+  // idempotent and best-effort (the system re-evaluates health anyway).
+  if (ops_.publishMode) ops_.publishMode(kModeIdle, profile);
+  switchFiltered("", target);
+  if (need_start_rsi && ops_.ekiStopRsi) ops_.ekiStopRsi();
+  return {false, rollback_reason_};
 }
 
 CommandResult ManagerRuntime::stopServo() {

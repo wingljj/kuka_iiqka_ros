@@ -7,7 +7,10 @@
 namespace kuka_eki {
 
 // Structural twin of sri::TcpClientTransport (Plan 4 decision 8); keep in
-// sync by hand. Minimal bounded-wait TCP client: poll()-based waits, no
+// sync by hand.
+// Normalized diff vs the sri twin: guard/include/namespace plus comment
+// wording only (Plan 5 followup Minor 6); re-check both after any edit.
+// Minimal bounded-wait TCP client: poll()-based waits, no
 // allocation after connect, not copyable. Any receive error / peer close /
 // send failure closes the socket so connected() doubles as the reconnect
 // trigger for the owning runtime. Not thread-safe: one owning thread.

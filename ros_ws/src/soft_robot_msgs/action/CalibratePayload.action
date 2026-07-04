@@ -20,4 +20,6 @@ float64 r2_torque
 ---
 uint32 pose_index           # 0-based pose currently being processed
 uint32 pose_count
-string phase                # MOVING | SETTLING | SAMPLING | SOLVING | RETURNING
+string phase                # MOVING | SETTLING | SAMPLING | RETURNING
+                            # (solve runs inside the DONE transition; no
+                            # SOLVING phase is ever published)

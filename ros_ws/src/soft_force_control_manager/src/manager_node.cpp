@@ -393,8 +393,16 @@ int main(int argc, char** argv) {
               result.bias_tz = s.fit.params.bias.tz;
               result.r2_force = s.fit.r2_force;
               result.r2_torque = s.fit.r2_torque;
-              if (result.success) cal_server->setSucceeded(result);
-              else cal_server->setAborted(result);
+              if (result.success) {
+                cal_server->setSucceeded(result);
+              } else if (s.cal.failure == sfm::CalFailure::CANCELLED) {
+                // Minor 5 (Plan 5 followup): a preempted goal must end
+                // PREEMPTED, not ABORTED — actionlib clients and the web
+                // UI (Plan 6 decision 10) key "cancelled" off this code.
+                cal_server->setPreempted(result);
+              } else {
+                cal_server->setAborted(result);
+              }
               return;
             }
           }
@@ -452,8 +460,20 @@ int main(int argc, char** argv) {
   std::thread preload([&] {
     ros::Rate r(1.0);
     while (ros::ok()) {
-      if (loadController(cfg.compliance_controller) &&
-          loadController(cfg.correction_controller)) {
+      // Minor 7 (Plan 5 followup): after a manager-only restart the
+      // controllers are already loaded and load_controller fails; an
+      // already-loaded controller satisfies the READY precondition, so
+      // check list_controllers first and treat presence as success.
+      auto loadedOrLoads = [&](const std::string& name) {
+        controller_manager_msgs::ListControllers srv;
+        if (cm_list.call(srv)) {
+          for (const auto& c : srv.response.controller)
+            if (c.name == name) return true;
+        }
+        return loadController(name);
+      };
+      if (loadedOrLoads(cfg.compliance_controller) &&
+          loadedOrLoads(cfg.correction_controller)) {
         runtime->setControllersLoaded(true);
         ROS_INFO("soft_robot_manager: controllers loaded");
         return;

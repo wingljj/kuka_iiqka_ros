@@ -26,7 +26,7 @@ void RsiSessionMonitor::onBadFrame() {
 void RsiSessionMonitor::countMiss() {
   ++stats_.consecutive_timeouts;
   if (stats_.consecutive_timeouts >= cfg_.max_consecutive_timeouts) {
-    stats_.fault = true;  // latched until reset()
+    stats_.fault = true;  // latched until clearFault()/reset()
   }
 }
 

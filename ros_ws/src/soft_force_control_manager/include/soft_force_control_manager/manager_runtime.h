@@ -149,6 +149,7 @@ class ManagerRuntime {
   std::uint8_t mode_{0}, profile_{0};
   std::string active_controller_;
   bool cal_teardown_done_{true};  // finish handling latch (edge trigger)
+  const char* rollback_reason_{""};  // I-2: verdict reason across unlock
 };
 
 }  // namespace sfm
