@@ -97,3 +97,11 @@ controller_manager without any middleman.
 
 Follow `docs/commissioning_checklist.md` stage by stage. Never skip the
 zero-output stages (2, 5).
+
+## 5. Web UI (Plan 6)
+
+Optional browser interface: see
+`ros_ws/src/soft_robot_web_interface/README.md`. Start it alongside
+either entry with `roslaunch soft_robot_web_interface web.launch`;
+it consumes exactly the manager surface used in Stage 9 of
+`docs/commissioning_checklist.md` and adds nothing to the realtime path.

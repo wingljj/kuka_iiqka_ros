@@ -75,18 +75,26 @@ every RSI frame with an all-zero RKorr.
 - [ ] After 10 min `rostopic echo -n 1 /kuka/rsi/state`:
       `total_timeouts` stable (not steadily climbing), `ipoc_jumps: 0`,
       `bad_frames: 0`.
-- [ ] Task 9 review observation item (RSI_MOVECORR blocks the KRL EKI
-      loop by design): while RSI is active, watch
-      `/kuka/eki/state` — `state_fresh` may go false because the KRL
-      heartbeat pauses during `RSI_MOVECORR()`. Confirm the manager's
-      tolerance matches expectations: RSI-phase supervision rides the
-      50 Hz `/kuka/rsi/state` channel (`rsi_state_timeout_s: 0.5`);
-      record the observed manager behavior (READY/DEGRADED) here.
-- [ ] `rosservice call /kuka/eki/stop_rsi_program` ends the loop cleanly;
-      `/kuka/eki/state` heartbeat resumes (age < 0.2 s again).
+- [ ] I-1 semantic layering check (Plan 6 Task 2): while RSI is active,
+      /kuka/eki/state `state_fresh` is EXPECTED to go false (the KRL
+      heartbeat pauses inside RSI_MOVECORR by design). The manager now
+      rides the 50 Hz /kuka/rsi/state channel during any RSI-active
+      phase (rule R1), so `manager_state` must stay READY here (idle
+      RSI loop, no servo requested) — record the observed state: ____.
+      DEGRADED/OFFLINE during this soak is a regression of rule R1.
+- [ ] `rosservice call /kuka/eki/stop_rsi_program` ends the loop. NOTE
+      (I-1): while MOVECORR blocks the KRL loop this command cannot be
+      served until the KRC leaves MOVECORR; if the deployment wired
+      Stop S as a MOVECORR break condition (ROS_RSI_CONTEXT.notes.md
+      item 3) a PC-side stop is available, otherwise stop the RSI loop
+      from the pendant. After the stream ends the hw latches its 5-miss
+      fault; with the heartbeat back and rsi_active=false the manager
+      masks it as session residue (rule R2) and stays READY — record
+      the post-stop manager state: ____ (expected READY, not FAULT).
+      A later start_servo pre-clears the latched hw fault (rule R3).
 
 Expected: 10 min of RSI traffic, zero motion, zero ipoc_jumps,
-timeout counters flat, clean stop.
+timeout counters flat, post-stop state READY (rules R2/R3).
 Abort: any motion during the soak (e-stop immediately — correction
 path is not zero: check RSI context POSCORR limits and RKorr mapping
 before ANY later stage); `ipoc_jumps > 0` or climbing
@@ -117,6 +125,8 @@ before ANY later stage); `ipoc_jumps > 0` or climbing
       correction <= 0.02 deg/cycle) — one axis per run.
 - [ ] `rosservice call /soft_robot/stop_servo`: back to
       `system_state: 2` (READY), RSI program stopped.
+      Post-stop the same R2/R3 endgame as Stage 2 applies: READY with a
+      masked residual hw fault is the clean outcome.
 
 Expected: motion only while messages flow, correct axis/sign/speed,
 instant stop on publisher kill, clean return to READY.
