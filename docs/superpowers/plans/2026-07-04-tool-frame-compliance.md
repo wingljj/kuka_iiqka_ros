@@ -1,5 +1,7 @@
 # 力顺应控制器工具坐标系变换 — 实施计划
 
+> **勘误(实施后)**:本文中的参数 `sensor_to_flange_rpy` 在实施时已更名为 `sensor_to_flange_abc`(元素顺序为 KUKA [A,B,C]=[Rz,Ry,Rx],单位度,与 rpy 读序相反)。以 `soft_robot_controllers.yaml` 与 bringup README 为准,勿直接复制本文 YAML 示例。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 把力顺应管线改为:传感器系扣重力 → 力旋转到工具系 → 工具系顺应律 → 修正量转回 BASE 系下发 RSI;同时修复重力补偿坐标系缺陷,并为未标定/无工具数据提供退化路径。
