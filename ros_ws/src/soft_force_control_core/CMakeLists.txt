@@ -23,6 +23,7 @@ add_library(${PROJECT_NAME}
   src/auto_retare.cpp
   src/orientation_motion_core.cpp
   src/payload_estimator.cpp
+  src/frame_resolver.cpp
 )
 
 if(CATKIN_ENABLE_TESTING)
@@ -55,4 +56,7 @@ if(CATKIN_ENABLE_TESTING)
 
   catkin_add_gtest(test_payload_estimator test/test_payload_estimator.cpp)
   target_link_libraries(test_payload_estimator ${PROJECT_NAME} ${GTEST_MAIN_LIBRARIES})
+
+  catkin_add_gtest(test_frame_resolver test/test_frame_resolver.cpp)
+  target_link_libraries(test_frame_resolver ${PROJECT_NAME} ${GTEST_MAIN_LIBRARIES})
 endif()

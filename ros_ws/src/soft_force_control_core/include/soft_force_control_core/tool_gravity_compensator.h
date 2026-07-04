@@ -1,4 +1,6 @@
 #pragma once
+#include <Eigen/Dense>
+
 #include "soft_force_control_core/types.h"
 
 namespace sfc {
@@ -11,12 +13,21 @@ struct PayloadParams {
 };
 
 // Subtracts sensor bias and tool gravity (force + CoM torque) from a raw
-// wrench. Sensor frame is assumed aligned with the flange orientation
-// given by the robot A/B/C angles (legacy FTCompensation behavior).
+// wrench, in the SENSOR frame. The matrix overload takes an arbitrary
+// SENSOR->BASE rotation (tool-frame design); the legacy angle overload
+// assumes the sensor is aligned with the frame given by the robot A/B/C
+// angles (old FTCompensation behavior) and delegates to it.
 class ToolGravityCompensator {
  public:
   void setParams(const PayloadParams& p) { params_ = p; }
   const PayloadParams& params() const { return params_; }
+  // Sensor-frame gravity subtraction (tool-frame design): r_base_sensor is
+  // the SENSOR->BASE rotation. gravity_n == 0 degrades to raw - bias
+  // (zero-only mode, no orientation dependence).
+  Wrench compensate(const Wrench& raw,
+                    const Eigen::Matrix3d& r_base_sensor) const;
+  // Legacy overload: sensor aligned with the frame given by KUKA A/B/C.
+  // Delegates to the matrix overload; behavior unchanged.
   Wrench compensate(const Wrench& raw, double a_deg, double b_deg,
                     double c_deg) const;
   // Auto re-tare support: fold a measured residual into the bias.

@@ -4,6 +4,7 @@
 #include "soft_force_control_core/auto_retare.h"
 #include "soft_force_control_core/compliance_law.h"
 #include "soft_force_control_core/force_torque_filter.h"
+#include "soft_force_control_core/frame_resolver.h"
 #include "soft_force_control_core/orientation_motion_core.h"
 #include "soft_force_control_core/safety_limiter.h"
 #include "soft_force_control_core/tool_gravity_compensator.h"
@@ -28,6 +29,13 @@ struct ForceComplianceParams {
   sfc::SafetyParams safety;              // per-cycle clamp + hard cutoff
   sfc::PayloadParams payload;
   double wrench_timeout_s{0.012};        // ~3 RSI cycles (spec section 8)
+};
+
+// Tool-frame chain locked at servo activation (spec: session-constant).
+// All-zero == identity == legacy behavior.
+struct ToolFrameConfig {
+  double tool_a{0}, tool_b{0}, tool_c{0};     // $TOOL A/B/C [deg], from EKI
+  double mount_a{0}, mount_b{0}, mount_c{0};  // sensor_to_flange A/B/C = Rz/Ry/Rx [deg]
 };
 
 struct ComplianceInput {
@@ -61,7 +69,10 @@ class ForceComplianceCore {
   // Entering servo with this profile: reset filter/law, record the auto
   // re-tare reference orientation (disarmed until the TCP leaves it),
   // start the adaptive deadband ramp if the profile uses it.
+  // Legacy entry: identity tool frame (kept for existing tests/callers).
   void activate(const sfc::CartesianState& start);
+  // Tool-frame entry: locks R_tcp_sensor from $TOOL + mount at activation.
+  void activate(const sfc::CartesianState& start, const ToolFrameConfig& tf);
 
   ComplianceOutput update(const ComplianceInput& in, double dt);
 
@@ -78,6 +89,7 @@ class ForceComplianceCore {
   ForceComplianceParams params_;
   sfc::ForceTorqueFilter filter_{10.0};
   sfc::ToolGravityCompensator compensator_;
+  sfc::FrameResolver frame_;
   sfc::ComplianceLaw law_;
   sfc::SafetyLimiter limiter_;
   sfc::AdaptiveDeadband ramp_;

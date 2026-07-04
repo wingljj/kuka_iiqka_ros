@@ -1,7 +1,14 @@
 # 力顺应控制器工具坐标系变换 — 设计
 
 日期:2026-07-04
-状态:待实施
+状态:已实施(核心实现 e6c3220..d1b9144;参数原名 `sensor_to_flange_rpy`,实施时更名为 `sensor_to_flange_abc`,元素序 KUKA [A, B, C] = [Rz, Ry, Rx],单位度,默认 [0,0,0])
+
+> **勘误(诊断标记,终审裁决)**:本文多处要求降级路径"在 `ModeState` 诊断标记"。
+> 实施时裁决为**不改 `ModeState.msg`**(无空余字段,新增字段会改 md5 并波及钉死
+> 枚举的 29 个 web 测试),降级通知改为**每次激活时的 `ROS_WARN`**(`activateCore`
+> 仅在激活沿运行,故每次降级激活都会重复告警,非 ONCE),并附带一条 `ROS_INFO`
+> 回显本次锁存的 tool/mount A/B/C 值以供审计。下文中"ModeState 诊断标记"字样
+> 均按此勘误理解。
 影响包:`soft_force_control_core`、`soft_robot_controllers`
 
 ## 背景与动机
@@ -50,7 +57,7 @@ RIst / `getA/B/C`:来自 `$POS_ACT`,是 **TCP**(含当前 `$TOOL`)在 BASE 系
 | 决策 | 选择 |
 |------|------|
 | 顺应增益方向性 | **各向同性**(平移/旋转两组同性值,不做逐轴扩展) |
-| 传感器→法兰旋转 | **可配置** `sensor_to_flange_rpy` 参数,默认 `[0,0,0]`(轴向对齐) |
+| 传感器→法兰旋转 | **可配置** `sensor_to_flange_abc` 参数(元素序 KUKA [A, B, C] = [Rz, Ry, Rx],单位度),默认 `[0,0,0]`(轴向对齐) |
 | 工具 A/B/C 数据源 | **EKI 实时订阅** `/kuka/eki/state` 的 `tool_a/b/c` |
 | 死区/限速/限加速阈值所在系 | **工具系** |
 | 未标定(`gravity_n == 0`)时的行为 | **退化为纯置0模式**:重力项按零处理(等价只减 SRI bias),并在 `ModeState` 诊断标记"未补偿重力,姿态变化会漂移" |
@@ -71,7 +78,7 @@ RIst / `getA/B/C`:来自 `$POS_ACT`,是 **TCP**(含当前 `$TOOL`)在 BASE 系
 ```
 BASE  ──R_bt(每周期, 来自 RIst A/B/C)──→  TCP(= TOOL)
 FLANGE ──R_ftool(来自 $TOOL A/B/C, EKI, 会话内恒定)──→ TCP
-FLANGE ──R_mount(sensor_to_flange_rpy, 配置, 默认单位)──→ SENSOR
+FLANGE ──R_mount(sensor_to_flange_abc, 配置, 默认单位)──→ SENSOR
 
 会话内恒定量(activate 时锁存一次):
   R_tcp_sensor = R_ftool⁻¹ · R_mount        // SENSOR → TCP
@@ -118,14 +125,14 @@ FLANGE ──R_mount(sensor_to_flange_rpy, 配置, 默认单位)──→ SENSOR
 - **`FrameResolver`(新增)**:持有会话内恒定的 `R_tcp_sensor`。提供:
   - `wrenchSensorToTool(Wrench) -> Wrench`(force、torque 各旋转)
   - `correctionToolToBase(CartesianCorrection, R_bt) -> CartesianCorrection`
-  - 构造:`configure(tool_abc, sensor_to_flange_rpy)`。
+  - 构造:`configure(tool_abc, sensor_to_flange_abc)`。
   纯 Eigen,无 ROS,无分配。
 
 ### `ForceComplianceCore`(改)
 
 - 新增成员:`FrameResolver frame_`;锁存的工具/安装旋转。
 - `activate(start, tool_abc)`:除现有逻辑外,用锁存的 `tool_abc` 与配置的
-  `sensor_to_flange_rpy` 配置 `frame_`。
+  `sensor_to_flange_abc` 配置 `frame_`。
 - `update()`:在重力补偿后插入 sensor→tool 变换;顺应律后插入 tool→base 变换;
   再进 SafetyLimiter。
 
@@ -133,7 +140,7 @@ FLANGE ──R_mount(sensor_to_flange_rpy, 配置, 默认单位)──→ SENSOR
 
 - 新增订阅 `/kuka/eki/state`(`soft_robot_msgs/EkiState`),把 `tool_a/b/c`
   写入 realtime buffer(`tool_buf_`)。
-- 参数 `sensor_to_flange_rpy`(默认 `[0,0,0]`),init 时读入两个 profile。
+- 参数 `sensor_to_flange_abc`(默认 `[0,0,0]`),init 时读入两个 profile。
 - `activate` 路径(`update()` 内 gate 进入分支 + `starting()` 重启分支):
   从 `tool_buf_` 读一次锁存,传给 `core_.activate(state, tool_abc)`。
 - 回退(无工具数据):activate 时若尚无有效 EKI 工具数据(`tool_valid=false`),
@@ -170,7 +177,7 @@ FLANGE ──R_mount(sensor_to_flange_rpy, 配置, 默认单位)──→ SENSOR
 1. **往返一致性**:sensor→tool→base 组合在恒等工具/安装下为恒等。
 2. **工具旋转重映射**:`$TOOL` 绕 Z 转 90° 时,传感器 X 向力驱动 BASE 下预期
    方向修正。
-3. **安装偏差**:`sensor_to_flange_rpy` 非零时变换正确。
+3. **安装偏差**:`sensor_to_flange_abc` 非零时变换正确。
 4. **各向同性回归**:恒同增益 + 恒等 R_bt 下,新管线 BASE 输出与旧"直接 BASE
    增益"数学等价(保护现有行为不回归)。
 5. **重力补偿修正**:工具带旋转分量时,静态负载在传感器系的重力扣除正确

@@ -10,6 +10,15 @@ force_compliance_controller:
   mode_state_topic: /soft_robot/mode_state
   rsi_state_topic: /kuka/rsi/state
   wrench_timeout: 0.012          # s; ~3 RSI cycles (spec section 8)
+  # Tool-frame chain (docs/superpowers/specs/2026-07-04-tool-frame-compliance-design.md):
+  # forces are resolved sensor -> tool -> base; both parameters below are
+  # locked once at servo activation (mid-session changes apply next start).
+  # sensor_to_flange_abc: [0.0, 0.0, 0.0]  # sensor mount offset on the flange,
+  #                                        # KUKA [A, B, C] = [Rz, Ry, Rx], degrees;
+  #                                        # default [0, 0, 0] = axis-aligned sensor
+  # eki_state_topic: /kuka/eki/state       # $TOOL A/B/C source; without valid EKI
+  #                                        # tool data activation assumes identity
+  #                                        # tool rotation (ROS_WARN_ONCE)
   safety:
     max_corr_trans: 0.5          # mm per cycle per axis
     max_corr_rot: 0.05           # deg per cycle per axis

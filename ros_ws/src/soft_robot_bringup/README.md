@@ -36,6 +36,42 @@ before every STRICT `switch_controller` request, so starts from READY,
 mode changes, and the calibration entry work against the real
 controller_manager without any middleman.
 
+## Tool-frame force resolution (FORCE_COMPLIANCE)
+
+Design: `docs/superpowers/specs/2026-07-04-tool-frame-compliance-design.md`.
+The compliance pipeline resolves the SRI wrench through the frame chain
+SENSOR -> TOOL -> BASE instead of treating sensor readings as BASE:
+
+- Gravity compensation runs in the SENSOR frame using
+  `R_base_sensor = R_bt * R_tcp_sensor` (R_bt from the live RIst pose).
+- The admittance law (gains, deadbands, speed/accel caps) runs in the
+  TOOL frame; the correction is rotated back to BASE for RSI RKorr.
+- `R_tcp_sensor = R_ftool^-1 * R_mount` is SESSION-CONSTANT: it is
+  locked once at servo activation from the latest `$TOOL` A/B/C on the
+  EKI state topic plus the configured sensor mount offset. Changing the
+  pendant `$TOOL` mid-servo takes effect at the NEXT servo start.
+- All rotations use the KUKA convention `R = Rz(A)*Ry(B)*Rx(C)`, degrees.
+
+Controller parameters (`soft_robot_controllers.yaml`, commented
+examples next to `wrench_timeout`):
+
+- `sensor_to_flange_abc` (default `[0, 0, 0]`): sensor mount offset on
+  the flange as KUKA `[A, B, C] = [Rz, Ry, Rx]` in degrees. The default
+  identity means the sensor is axis-aligned with the flange.
+- `eki_state_topic` (default `/kuka/eki/state`): source of the `$TOOL`
+  A/B/C angles.
+
+Degrade paths (servo starts either way, ROS_WARN_ONCE each):
+
+- No valid EKI tool data at activation -> identity tool rotation
+  (pre-tool-frame behavior).
+- Payload not calibrated (`gravity_n == 0`) -> zero-only mode: gravity
+  terms are skipped, `compensate` reduces to `raw - bias`. Correct at
+  the taring pose, but orientation changes make the uncompensated tool
+  weight read as external force and the TCP drifts toward it; deadbands
+  and the SafetyLimiter keep it bounded. Calibrate the payload before
+  relying on orientation changes under load.
+
 ## 1. Build & static check
 
     cd ros_ws && catkin_make
