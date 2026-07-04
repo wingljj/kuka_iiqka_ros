@@ -13,8 +13,10 @@ struct PayloadParams {
 };
 
 // Subtracts sensor bias and tool gravity (force + CoM torque) from a raw
-// wrench. Sensor frame is assumed aligned with the flange orientation
-// given by the robot A/B/C angles (legacy FTCompensation behavior).
+// wrench, in the SENSOR frame. The matrix overload takes an arbitrary
+// SENSOR->BASE rotation (tool-frame design); the legacy angle overload
+// assumes the sensor is aligned with the frame given by the robot A/B/C
+// angles (old FTCompensation behavior) and delegates to it.
 class ToolGravityCompensator {
  public:
   void setParams(const PayloadParams& p) { params_ = p; }
