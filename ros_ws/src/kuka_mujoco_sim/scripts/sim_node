@@ -1,0 +1,3 @@
+#!/usr/bin/env python3
+from kuka_mujoco_sim.sim_node import main
+main()
