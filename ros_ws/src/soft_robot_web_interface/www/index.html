@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Soft Robot Operator Interface</title>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <header id="banner" class="ok">
+    <span id="banner-state">CONNECTING…</span>
+    <span id="banner-note"></span>
+    <span id="ws-status" class="badge off">rosbridge</span>
+  </header>
+
+  <main>
+    <!-- Dashboard (spec 13): links, mode/profile, active faults -->
+    <section id="dashboard">
+      <h2>Dashboard</h2>
+      <div class="badges">
+        <span id="badge-eki" class="badge off">EKI</span>
+        <span id="badge-rsi" class="badge off">RSI</span>
+        <span id="badge-sri" class="badge off">SRI</span>
+      </div>
+      <table class="kv">
+        <tr><th>System state</th><td id="kv-state">—</td></tr>
+        <tr><th>Mode / profile</th><td id="kv-mode">—</td></tr>
+        <tr><th>Active controller</th><td id="kv-controller">—</td></tr>
+        <tr><th>Tool synced</th><td id="kv-tool">—</td></tr>
+        <tr><th>EKI note</th><td id="kv-ekinote">—</td></tr>
+        <tr><th>Hint</th><td id="kv-hint">—</td></tr>
+      </table>
+    </section>
+
+    <!-- Servo Control (spec 13): start/stop, mode & profile, limits -->
+    <section id="servo">
+      <h2>Servo Control</h2>
+      <label>Mode
+        <select id="sel-mode">
+          <option value="1">DIRECT_CARTESIAN</option>
+          <option value="2" selected>FORCE_COMPLIANCE</option>
+        </select>
+      </label>
+      <label>Profile
+        <select id="sel-profile">
+          <option value="0" selected>DRAG</option>
+          <option value="1">PRECISION</option>
+        </select>
+      </label>
+      <div class="buttons">
+        <button id="btn-start">Start Servo</button>
+        <button id="btn-stop">Stop Servo</button>
+        <button id="btn-zero">Zero Sensor</button>
+        <button id="btn-reset">Reset Fault</button>
+      </div>
+      <p id="cmd-result" class="cmd-result"></p>
+      <table class="kv">
+        <tr><th>Saturation count</th><td id="kv-sat">—</td></tr>
+        <tr><th>RSI fault</th><td id="kv-rsifault">—</td></tr>
+      </table>
+      <p class="note">Correction values are not published by any node
+        (plan 6 spec-conflict record 2); saturation counts stand in as
+        the limit-status indicator.</p>
+    </section>
+
+    <!-- Force Monitor (spec 13): trend curves -->
+    <section id="force">
+      <h2>Force Monitor</h2>
+      <div class="chart-block">
+        <h3>Force [N] <span class="legend">
+          <i class="c0">Fx</i> <i class="c1">Fy</i> <i class="c2">Fz</i>
+        </span></h3>
+        <canvas id="chart-force" width="560" height="160"></canvas>
+      </div>
+      <div class="chart-block">
+        <h3>Torque [Nm] <span class="legend">
+          <i class="c0">Tx</i> <i class="c1">Ty</i> <i class="c2">Tz</i>
+        </span></h3>
+        <canvas id="chart-torque" width="560" height="160"></canvas>
+      </div>
+      <table class="kv">
+        <tr><th>Latest wrench</th><td id="kv-wrench">—</td></tr>
+      </table>
+    </section>
+
+    <!-- Calibration (spec 13): wizard with feedback + result preview -->
+    <section id="calibration">
+      <h2>Calibration</h2>
+      <div class="buttons">
+        <button id="btn-cal-start">Start Calibration</button>
+        <button id="btn-cal-cancel">Cancel</button>
+      </div>
+      <p id="cal-phase" class="cal-phase">idle</p>
+      <progress id="cal-progress" max="8" value="0"></progress>
+      <table class="kv" id="cal-result-table">
+        <tr><th>Result</th><td id="cal-outcome">—</td></tr>
+        <tr><th>gravity_n [N]</th><td id="cal-g">—</td></tr>
+        <tr><th>com [m]</th><td id="cal-com">—</td></tr>
+        <tr><th>bias F [N]</th><td id="cal-biasf">—</td></tr>
+        <tr><th>bias T [Nm]</th><td id="cal-biast">—</td></tr>
+        <tr><th>r2 force / torque</th><td id="cal-r2">—</td></tr>
+      </table>
+    </section>
+
+    <!-- Diagnostics + read-only parameters (spec 13, merged) -->
+    <section id="diagnostics">
+      <h2>Diagnostics</h2>
+      <table class="kv">
+        <tr><th>RSI ipoc</th><td id="kv-ipoc">—</td></tr>
+        <tr><th>RSI timeouts (total/consec)</th><td id="kv-timeouts">—</td></tr>
+        <tr><th>RSI bad frames / ipoc jumps</th><td id="kv-badframes">—</td></tr>
+        <tr><th>SRI samples / gaps</th><td id="kv-sri-samples">—</td></tr>
+        <tr><th>SRI last sample age [s]</th><td id="kv-sri-age">—</td></tr>
+        <tr><th>EKI reconnects / state age</th><td id="kv-eki-age">—</td></tr>
+        <tr><th>Tool (EKI, read-only)</th><td id="kv-tool-frame">—</td></tr>
+        <tr><th>Manager diagnostics</th><td id="kv-diag">—</td></tr>
+      </table>
+    </section>
+  </main>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
