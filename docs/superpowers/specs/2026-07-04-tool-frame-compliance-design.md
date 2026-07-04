@@ -53,6 +53,7 @@ RIst / `getA/B/C`:来自 `$POS_ACT`,是 **TCP**(含当前 `$TOOL`)在 BASE 系
 | 传感器→法兰旋转 | **可配置** `sensor_to_flange_rpy` 参数,默认 `[0,0,0]`(轴向对齐) |
 | 工具 A/B/C 数据源 | **EKI 实时订阅** `/kuka/eki/state` 的 `tool_a/b/c` |
 | 死区/限速/限加速阈值所在系 | **工具系** |
+| 未标定(`gravity_n == 0`)时的行为 | **退化为纯置0模式**:重力项按零处理(等价只减 SRI bias),并在 `ModeState` 诊断标记"未补偿重力,姿态变化会漂移" |
 
 ### 关于各向同性增益的数学事实(重要)
 
@@ -111,6 +112,9 @@ FLANGE ──R_mount(sensor_to_flange_rpy, 配置, 默认单位)──→ SENSOR
 - **`ToolGravityCompensator`(改)**:接收传感器系朝向而非 TCP 朝向。签名从
   `compensate(raw, a, b, c)` 改为接收 `R_base_sensor`(或等价角度/矩阵)。
   修正重力扣除坐标系缺陷。CoM 保持传感器系(标定输出即传感器系,无需改标定)。
+  **未标定退化**:当 `gravity_n == 0` 时,重力力项与力矩项均为零,`compensate`
+  只做 `raw - bias`——等价于"纯置0"(SRI 侧 bias 已减,这里 payload bias 为零)。
+  此路径本身正确,只是在姿态变化时不再补偿工具自重(见"未标定行为语义")。
 - **`FrameResolver`(新增)**:持有会话内恒定的 `R_tcp_sensor`。提供:
   - `wrenchSensorToTool(Wrench) -> Wrench`(force、torque 各旋转)
   - `correctionToolToBase(CartesianCorrection, R_bt) -> CartesianCorrection`
@@ -132,9 +136,24 @@ FLANGE ──R_mount(sensor_to_flange_rpy, 配置, 默认单位)──→ SENSOR
 - 参数 `sensor_to_flange_rpy`(默认 `[0,0,0]`),init 时读入两个 profile。
 - `activate` 路径(`update()` 内 gate 进入分支 + `starting()` 重启分支):
   从 `tool_buf_` 读一次锁存,传给 `core_.activate(state, tool_abc)`。
-- 回退:activate 时若尚无有效 EKI 工具数据(`tool_valid=false`),工具旋转按
-  单位处理(等价现状行为),并在 `ModeState` 诊断标记(如新增 flag 或复用现有
-  degraded 语义中的提示)。
+- 回退(无工具数据):activate 时若尚无有效 EKI 工具数据(`tool_valid=false`),
+  工具旋转按单位处理(等价现状行为),并在 `ModeState` 诊断标记。
+- 回退(未标定):activate 时若 `gravity_n == 0`,置一个诊断标记提示"未补偿
+  重力,姿态变化会漂移"(见下节语义)。伺服照常启动,不阻断。
+
+### 未标定行为语义(设计说明)
+
+"传感器置0"(`/sri_ft/zero`)只在**当前姿态**下减一个静态偏置常数,不随姿态
+变化补偿工具自重。因此不做标定、只置0 直接启动伺服时:
+
+- **姿态不变**:基本正常——置0 已把当前姿态的重力投影连同零偏一起归零,
+  顺应控制读到的即净外力。
+- **姿态旋转**:工具自重在传感器系的投影随姿态改变,而 bias 是置0那一刻的常数;
+  差值(未补偿重力)被误当外力,机器人朝假力方向漂移;负载越重、姿态变化越大
+  越明显。死区、`SafetyLimiter` 硬截断让它"漂而不飞",但手感与精度变差。
+
+设计选择:不阻断这条路径(现场到位后置0拖动是合理用法),但在 `gravity_n == 0`
+时给出明确诊断,使操作员知道当前处于"未补偿"状态。
 
 ## RT 安全性
 
@@ -156,7 +175,9 @@ FLANGE ──R_mount(sensor_to_flange_rpy, 配置, 默认单位)──→ SENSOR
    增益"数学等价(保护现有行为不回归)。
 5. **重力补偿修正**:工具带旋转分量时,静态负载在传感器系的重力扣除正确
    (旧实现此处会有误差)。
-6. **回退**:无 EKI 工具数据时按单位工具旋转,等价现状。
+6. **回退(无工具数据)**:无 EKI 工具数据时按单位工具旋转,等价现状。
+7. **未标定退化**:`gravity_n == 0` 时 `compensate` 输出 = `raw - bias`(重力项零),
+   且姿态变化不引入重力补偿项;诊断标记置位。
 
 回归:现有全部 node/gtest 不破;`ComplianceLaw`、`SafetyLimiter`、`AutoReTare`
 等下游组件签名不变(仍吃 `Wrench` / `CartesianCorrection`,只是所处系语义变化)。
