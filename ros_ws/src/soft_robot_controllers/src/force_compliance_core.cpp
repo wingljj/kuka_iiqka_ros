@@ -19,6 +19,13 @@ void ForceComplianceCore::configure(const ForceComplianceParams& p) {
 }
 
 void ForceComplianceCore::activate(const sfc::CartesianState& start) {
+  activate(start, ToolFrameConfig{});
+}
+
+void ForceComplianceCore::activate(const sfc::CartesianState& start,
+                                   const ToolFrameConfig& tf) {
+  frame_.configure(tf.tool_a, tf.tool_b, tf.tool_c, tf.mount_a, tf.mount_b,
+                   tf.mount_c);
   filter_.reset();
   law_.reset();
   motion_.cancel();
@@ -45,8 +52,12 @@ ComplianceOutput ForceComplianceCore::update(const ComplianceInput& in,
   }
 
   const sfc::Wrench filtered = filter_.filter(in.raw, dt);
-  out.compensated =
-      compensator_.compensate(filtered, in.state.a, in.state.b, in.state.c);
+  // Frame chain (tool-frame design): r_bt is TCP->BASE from the live RIst
+  // pose; r_base_sensor extends it through the session-constant sensor leg.
+  const Eigen::Matrix3d r_bt =
+      sfc::kukaAbcToRotation(in.state.a, in.state.b, in.state.c);
+  const Eigen::Matrix3d r_base_sensor = r_bt * frame_.tcpFromSensor();
+  out.compensated = compensator_.compensate(filtered, r_base_sensor);
 
   if (ramp_.active()) {
     // Startup ramp (spec 7.4): hold zero output while learning the
@@ -79,15 +90,19 @@ ComplianceOutput ForceComplianceCore::update(const ComplianceInput& in,
     tare_armed_ = false;
     out.tared = true;
     // Recompute with the updated bias: the residual is now absorbed.
-    out.compensated =
-        compensator_.compensate(filtered, in.state.a, in.state.b, in.state.c);
+    out.compensated = compensator_.compensate(filtered, r_base_sensor);
   }
 
   sfc::ComplianceParams law_params = params_.compliance;
   law_params.translation.deadband = force_deadband_;
   law_params.rotation.deadband = torque_deadband_;
+  // Admittance in the TOOL frame (deadband/speed caps are tool-frame
+  // semantics per the approved design), then back to BASE for RSI.
+  const sfc::Wrench w_tool = frame_.wrenchSensorToTool(out.compensated);
+  const sfc::CartesianCorrection compliance_tool =
+      law_.compute(w_tool, law_params, dt);
   const sfc::CartesianCorrection compliance =
-      law_.compute(out.compensated, law_params, dt);
+      frame_.correctionToolToBase(compliance_tool, r_bt);
   const sfc::CartesianCorrection motion = motion_.update(in.state, dt);
 
   // Plan 1 follow-up 2: sum both correction paths BEFORE the limiter so

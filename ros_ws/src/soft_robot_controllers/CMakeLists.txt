@@ -68,6 +68,10 @@ if(CATKIN_ENABLE_TESTING)
   target_link_libraries(test_fcc_orientation_sum ${PROJECT_NAME}
                         ${GTEST_MAIN_LIBRARIES})
 
+  catkin_add_gtest(test_fcc_tool_frame test/test_fcc_tool_frame.cpp)
+  target_link_libraries(test_fcc_tool_frame ${PROJECT_NAME}
+                        ${GTEST_MAIN_LIBRARIES})
+
   catkin_add_gtest(test_direct_correction_core test/test_direct_correction_core.cpp)
   target_link_libraries(test_direct_correction_core ${PROJECT_NAME}
                         ${GTEST_MAIN_LIBRARIES})
