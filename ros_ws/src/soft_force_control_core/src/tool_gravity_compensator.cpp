@@ -6,11 +6,10 @@
 
 namespace sfc {
 
-Wrench ToolGravityCompensator::compensate(const Wrench& raw, double a_deg,
-                                          double b_deg, double c_deg) const {
-  const Eigen::Matrix3d r = kukaAbcToRotation(a_deg, b_deg, c_deg);
+Wrench ToolGravityCompensator::compensate(
+    const Wrench& raw, const Eigen::Matrix3d& r_base_sensor) const {
   const Eigen::Vector3d f_g =
-      r.transpose() * Eigen::Vector3d(0, 0, -params_.gravity_n);
+      r_base_sensor.transpose() * Eigen::Vector3d(0, 0, -params_.gravity_n);
   const Eigen::Vector3d com(params_.com_x, params_.com_y, params_.com_z);
   const Eigen::Vector3d t_g = com.cross(f_g);
 
@@ -22,6 +21,11 @@ Wrench ToolGravityCompensator::compensate(const Wrench& raw, double a_deg,
   out.ty = raw.ty - params_.bias.ty - t_g.y();
   out.tz = raw.tz - params_.bias.tz - t_g.z();
   return out;
+}
+
+Wrench ToolGravityCompensator::compensate(const Wrench& raw, double a_deg,
+                                          double b_deg, double c_deg) const {
+  return compensate(raw, kukaAbcToRotation(a_deg, b_deg, c_deg));
 }
 
 void ToolGravityCompensator::absorbResidual(const Wrench& residual) {
