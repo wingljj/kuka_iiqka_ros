@@ -52,6 +52,12 @@ class MujocoWorld:
             sid = model.site('ft_site').id
             quat = fc.abc_deg_to_quat(*mount_abc_deg)
             model.site_quat[sid] = quat
+            # The compiler sets site_sameframe=1 because ft_site has an
+            # identity pose relative to its parent body; that flag makes the
+            # kinematics reuse the body frame and ignore a post-compile
+            # site_quat edit, so the mount rotation would silently no-op.
+            # Clear it so the edited orientation actually drives site_xmat.
+            model.site_sameframe[sid] = 0
         if not wall_enabled:
             gid = model.geom('wall_geom').id
             model.geom_contype[gid] = 0
