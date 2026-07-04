@@ -1,14 +1,14 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Soft Robot Operator Interface</title>
+  <title>软体机器人操作界面</title>
   <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
   <header id="banner" class="ok">
-    <span id="banner-state">CONNECTING…</span>
+    <span id="banner-state">连接中…</span>
     <span id="banner-note"></span>
     <span id="ws-status" class="badge off">rosbridge</span>
   </header>
@@ -16,104 +16,103 @@
   <main>
     <!-- Dashboard (spec 13): links, mode/profile, active faults -->
     <section id="dashboard">
-      <h2>Dashboard</h2>
+      <h2>总览</h2>
       <div class="badges">
         <span id="badge-eki" class="badge off">EKI</span>
         <span id="badge-rsi" class="badge off">RSI</span>
         <span id="badge-sri" class="badge off">SRI</span>
       </div>
       <table class="kv">
-        <tr><th>System state</th><td id="kv-state">—</td></tr>
-        <tr><th>Mode / profile</th><td id="kv-mode">—</td></tr>
-        <tr><th>Active controller</th><td id="kv-controller">—</td></tr>
-        <tr><th>Tool synced</th><td id="kv-tool">—</td></tr>
-        <tr><th>EKI note</th><td id="kv-ekinote">—</td></tr>
-        <tr><th>Hint</th><td id="kv-hint">—</td></tr>
+        <tr><th>系统状态</th><td id="kv-state">—</td></tr>
+        <tr><th>模式 / 参数档</th><td id="kv-mode">—</td></tr>
+        <tr><th>当前控制器</th><td id="kv-controller">—</td></tr>
+        <tr><th>工具已同步</th><td id="kv-tool">—</td></tr>
+        <tr><th>EKI 备注</th><td id="kv-ekinote">—</td></tr>
+        <tr><th>提示</th><td id="kv-hint">—</td></tr>
       </table>
     </section>
 
     <!-- Servo Control (spec 13): start/stop, mode & profile, limits -->
     <section id="servo">
-      <h2>Servo Control</h2>
-      <label>Mode
+      <h2>伺服控制</h2>
+      <label>模式
         <select id="sel-mode">
-          <option value="1">DIRECT_CARTESIAN</option>
-          <option value="2" selected>FORCE_COMPLIANCE</option>
+          <option value="1">直接笛卡尔修正 (DIRECT_CARTESIAN)</option>
+          <option value="2" selected>力顺应 (FORCE_COMPLIANCE)</option>
         </select>
       </label>
-      <label>Profile
+      <label>参数档
         <select id="sel-profile">
-          <option value="0" selected>DRAG</option>
-          <option value="1">PRECISION</option>
+          <option value="0" selected>拖动 (DRAG)</option>
+          <option value="1">精密 (PRECISION)</option>
         </select>
       </label>
       <div class="buttons">
-        <button id="btn-start">Start Servo</button>
-        <button id="btn-stop">Stop Servo</button>
-        <button id="btn-zero">Zero Sensor</button>
-        <button id="btn-reset">Reset Fault</button>
+        <button id="btn-start">启动伺服</button>
+        <button id="btn-stop">停止伺服</button>
+        <button id="btn-zero">传感器清零</button>
+        <button id="btn-reset">复位故障</button>
       </div>
       <p id="cmd-result" class="cmd-result"></p>
       <table class="kv">
-        <tr><th>Saturation count</th><td id="kv-sat">—</td></tr>
-        <tr><th>RSI fault</th><td id="kv-rsifault">—</td></tr>
+        <tr><th>饱和计数</th><td id="kv-sat">—</td></tr>
+        <tr><th>RSI 故障</th><td id="kv-rsifault">—</td></tr>
       </table>
-      <p class="note">Correction values are not published by any node
-        (plan 6 spec-conflict record 2); saturation counts stand in as
-        the limit-status indicator.</p>
+      <p class="note">修正量数值没有任何节点对外发布
+        (计划 6 规格冲突记录 2);以饱和计数作为限幅状态指示。</p>
     </section>
 
     <!-- Force Monitor (spec 13): trend curves -->
     <section id="force">
-      <h2>Force Monitor</h2>
+      <h2>力监视</h2>
       <div class="chart-block">
-        <h3>Force [N] <span class="legend">
+        <h3>力 [N] <span class="legend">
           <i class="c0">Fx</i> <i class="c1">Fy</i> <i class="c2">Fz</i>
         </span></h3>
         <canvas id="chart-force" width="560" height="160"></canvas>
       </div>
       <div class="chart-block">
-        <h3>Torque [Nm] <span class="legend">
+        <h3>力矩 [Nm] <span class="legend">
           <i class="c0">Tx</i> <i class="c1">Ty</i> <i class="c2">Tz</i>
         </span></h3>
         <canvas id="chart-torque" width="560" height="160"></canvas>
       </div>
       <table class="kv">
-        <tr><th>Latest wrench</th><td id="kv-wrench">—</td></tr>
+        <tr><th>最新读数</th><td id="kv-wrench">—</td></tr>
       </table>
     </section>
 
     <!-- Calibration (spec 13): wizard with feedback + result preview -->
     <section id="calibration">
-      <h2>Calibration</h2>
+      <h2>负载标定</h2>
       <div class="buttons">
-        <button id="btn-cal-start">Start Calibration</button>
-        <button id="btn-cal-cancel">Cancel</button>
+        <button id="btn-cal-start">开始标定</button>
+        <button id="btn-cal-cancel">取消</button>
       </div>
-      <p id="cal-phase" class="cal-phase">idle</p>
+      <p id="cal-phase" class="cal-phase">空闲</p>
       <progress id="cal-progress" max="8" value="0"></progress>
       <table class="kv" id="cal-result-table">
-        <tr><th>Result</th><td id="cal-outcome">—</td></tr>
-        <tr><th>gravity_n [N]</th><td id="cal-g">—</td></tr>
-        <tr><th>com [m]</th><td id="cal-com">—</td></tr>
-        <tr><th>bias F [N]</th><td id="cal-biasf">—</td></tr>
-        <tr><th>bias T [Nm]</th><td id="cal-biast">—</td></tr>
-        <tr><th>r2 force / torque</th><td id="cal-r2">—</td></tr>
+        <tr><th>结果</th><td id="cal-outcome">—</td></tr>
+        <tr><th>重力 gravity_n [N]</th><td id="cal-g">—</td></tr>
+        <tr><th>质心 com [m]</th><td id="cal-com">—</td></tr>
+        <tr><th>力偏置 bias F [N]</th><td id="cal-biasf">—</td></tr>
+        <tr><th>力矩偏置 bias T [Nm]</th><td id="cal-biast">—</td></tr>
+        <tr><th>拟合优度 r² 力 / 力矩</th><td id="cal-r2">—</td></tr>
       </table>
     </section>
 
     <!-- Diagnostics + read-only parameters (spec 13, merged) -->
     <section id="diagnostics">
-      <h2>Diagnostics</h2>
+      <h2>诊断</h2>
       <table class="kv">
         <tr><th>RSI ipoc</th><td id="kv-ipoc">—</td></tr>
-        <tr><th>RSI timeouts (total/consec)</th><td id="kv-timeouts">—</td></tr>
-        <tr><th>RSI bad frames / ipoc jumps</th><td id="kv-badframes">—</td></tr>
-        <tr><th>SRI samples / gaps</th><td id="kv-sri-samples">—</td></tr>
-        <tr><th>SRI last sample age [s]</th><td id="kv-sri-age">—</td></tr>
-        <tr><th>EKI reconnects / state age</th><td id="kv-eki-age">—</td></tr>
-        <tr><th>Tool (EKI, read-only)</th><td id="kv-tool-frame">—</td></tr>
-        <tr><th>Manager diagnostics</th><td id="kv-diag">—</td></tr>
+        <tr><th>RSI 超时 (累计/连续)</th><td id="kv-timeouts">—</td></tr>
+        <tr><th>RSI 坏帧 / ipoc 跳变</th><td id="kv-badframes">—</td></tr>
+        <tr><th>SRI 采样数 / 丢包</th><td id="kv-sri-samples">—</td></tr>
+        <tr><th>SRI 最近采样时距 [s]</th><td id="kv-sri-age">—</td></tr>
+        <tr><th>EKI 重连数 / 状态时距</th><td id="kv-eki-age">—</td></tr>
+        <tr><th>工具坐标 (EKI, 只读)</th><td id="kv-tool-frame">—</td></tr>
+        <tr><th>Manager 诊断</th><td id="kv-diag">—</td></tr>
       </table>
     </section>
   </main>
