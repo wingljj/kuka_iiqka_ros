@@ -2,6 +2,13 @@
 
 日期:2026-07-04
 状态:已实施(核心实现 e6c3220..d1b9144;参数原名 `sensor_to_flange_rpy`,实施时更名为 `sensor_to_flange_abc`,元素序 KUKA [A, B, C] = [Rz, Ry, Rx],单位度,默认 [0,0,0])
+
+> **勘误(诊断标记,终审裁决)**:本文多处要求降级路径"在 `ModeState` 诊断标记"。
+> 实施时裁决为**不改 `ModeState.msg`**(无空余字段,新增字段会改 md5 并波及钉死
+> 枚举的 29 个 web 测试),降级通知改为**每次激活时的 `ROS_WARN`**(`activateCore`
+> 仅在激活沿运行,故每次降级激活都会重复告警,非 ONCE),并附带一条 `ROS_INFO`
+> 回显本次锁存的 tool/mount A/B/C 值以供审计。下文中"ModeState 诊断标记"字样
+> 均按此勘误理解。
 影响包:`soft_force_control_core`、`soft_robot_controllers`
 
 ## 背景与动机

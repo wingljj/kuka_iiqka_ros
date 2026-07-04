@@ -217,7 +217,10 @@ void ForceComplianceController::activateCore() {
     tf.tool_b = tool.b;
     tf.tool_c = tool.c;
   } else {
-    ROS_WARN_ONCE(
+    // Per-activation (not ONCE): activateCore only runs on activation edges,
+    // so this repeats for every degraded activation. Spec errata: ModeState
+    // has no spare diagnostic field, so degrades are surfaced via rosout.
+    ROS_WARN(
         "FORCE_COMPLIANCE activated without EKI tool data; assuming identity "
         "tool rotation");
   }
@@ -225,10 +228,15 @@ void ForceComplianceController::activateCore() {
   tf.mount_b = mount_b_;
   tf.mount_c = mount_c_;
   if (core_.payload().gravity_n == 0.0) {
-    ROS_WARN_ONCE(
+    ROS_WARN(
         "payload not calibrated (gravity_n == 0): zero-only mode, "
         "orientation changes will drift");
   }
+  ROS_INFO(
+      "FORCE_COMPLIANCE frame locked: tool A/B/C=[%.3f %.3f %.3f]%s "
+      "mount A/B/C=[%.3f %.3f %.3f] [deg]",
+      tf.tool_a, tf.tool_b, tf.tool_c, tool.valid ? "" : " (no EKI data)",
+      tf.mount_a, tf.mount_b, tf.mount_c);
   core_.activate(readState(), tf);
 }
 
