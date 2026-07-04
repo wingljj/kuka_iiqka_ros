@@ -77,6 +77,13 @@ HealthInputs ManagerRuntime::healthLocked(double now_s) const {
   const bool eki_fresh =
       eki_rx_s_ >= 0.0 && now_s - eki_rx_s_ <= cfg_.eki_state_timeout_s;
   in.eki_link = eki_fresh && eki_.connected && eki_.state_fresh;
+  // I-1 layering inputs (Plan 6 Task 2): raw components + KRC RSI view.
+  // eki_.connected is the bridge's TCP view from the last message; while
+  // MOVECORR gaps the heartbeat the bridge keeps publishing, so the last
+  // received value stays authoritative for the TCP link.
+  in.eki_tcp_connected = eki_.connected;
+  in.eki_heartbeat_fresh = eki_fresh && eki_.state_fresh;
+  in.eki_rsi_active = eki_.rsi_active;
   in.eki_program_ready = in.eki_link && eki_.program_ready;
   in.eki_fault = eki_fresh && eki_.fault;
   in.rsi_topic_fresh =
@@ -88,6 +95,12 @@ HealthInputs ManagerRuntime::healthLocked(double now_s) const {
                      sri_streaming_;
   in.tool_synced = tool_synced_;
   in.controllers_loaded = controllers_loaded_;
+  // R1 companion: during an RSI-active heartbeat gap the last heartbeat
+  // before MOVECORR reported program_ready; carry it while TCP is up and
+  // the RSI stream proves the program alive.
+  if (!in.eki_program_ready && in.eki_tcp_connected &&
+      in.rsi_topic_fresh && in.rsi_connected)
+    in.eki_program_ready = eki_.program_ready;
   return in;
 }
 
@@ -128,7 +141,10 @@ void ManagerRuntime::run() {
     {
       std::lock_guard<std::mutex> lock(mutex_);
       HealthInputs in = healthLocked(now);
-      if (!in.eki_link) tool_synced_ = false;  // resync after reconnect
+      const bool eki_gone =
+          !in.eki_link && !(in.eki_tcp_connected && in.rsi_topic_fresh &&
+                            in.rsi_connected);
+      if (eki_gone) tool_synced_ = false;  // resync after real reconnect
       core_.update(in);
 
       want_tool_sync = in.eki_link && eki_.program_ready && !tool_synced_ &&
@@ -193,6 +209,22 @@ CommandResult ManagerRuntime::startServo(std::uint8_t mode,
     std::lock_guard<std::mutex> lock(mutex_);
     if (core_.state() != SystemState::READY)
       return {false, "start requires READY"};
+  }
+
+  // R3 (Plan 6 Task 2): a residue-latched hw fault from the previous RSI
+  // session must be cleared before START_RSI, or write() would answer the
+  // new session with Stop S=1. Only the masked-residue case qualifies;
+  // a live fault would have latched FAULT above and never reach here.
+  bool need_fault_clear = false;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    const HealthInputs in = healthLocked(nowS());
+    need_fault_clear = rsi_fault_ && in.eki_heartbeat_fresh &&
+                       !in.eki_rsi_active;
+  }
+  if (need_fault_clear) {
+    if (!ops_.rsiResetFault || !ops_.rsiResetFault())
+      return {false, "residual RSI fault clear failed"};
   }
 
   bool need_start_rsi = true;

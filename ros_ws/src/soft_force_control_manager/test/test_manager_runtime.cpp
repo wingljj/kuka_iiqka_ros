@@ -86,12 +86,24 @@ struct MockOps {
     ManagerOps o;
     o.ekiStartRsi = [this] {
       push("start_rsi");
-      if (start_rsi_ok && rt) rt->feedRsiState(true, false);
+      if (start_rsi_ok && rt) {
+        rt->feedRsiState(true, false);
+        EkiFeed f;
+        f.connected = true;
+        f.state_fresh = true;
+        f.program_ready = true;
+        f.rsi_active = true;
+        rt->feedEkiState(f);
+      }
       return start_rsi_ok;
     };
     o.ekiStopRsi = [this] { push("stop_rsi"); return true; };
     o.ekiResetFault = [this] { push("eki_reset"); return true; };
-    o.rsiResetFault = [this] { push("rsi_reset"); return true; };
+    o.rsiResetFault = [this] {
+      push("rsi_reset");
+      if (rt) rt->feedRsiState(false, false);  // hw fault unlatched
+      return true;
+    };
     o.sriZero = [this] { push("sri_zero"); return true; };
     o.ekiGetTool = [this]() -> ToolFrame {
       ToolFrame t;
@@ -551,5 +563,63 @@ TEST(ManagerRuntime, StartServoFailsClosedWhenRunningQueryFails) {
   EXPECT_FALSE(r.success);
   EXPECT_EQ(rt.snapshot().state, SystemState::READY);  // stays READY
   EXPECT_FALSE(mock.switchLogged());   // fail-closed: nothing forwarded
+  rt.stop();
+}
+
+// ---- Plan 6 Task 2: I-1 stop-chain endgame (rules R2 + R3) ----
+
+TEST(ManagerRuntime, CleanStopResidueFaultKeepsReady) {
+  // After stop_servo the RSI stream dies and the hw latches fault=true
+  // within 5 cycles; with a fresh heartbeat and rsi_active=false the
+  // manager must treat it as session residue and stay READY (R2).
+  MockOps mock;
+  ManagerRuntime rt{fastConfig(), mock.ops()};
+  mock.rt = &rt;
+  ASSERT_TRUE(rt.start());
+  driveToServoing(rt, mock);
+  ASSERT_TRUE(rt.stopServo().success);
+  // Post-stop world: KRC ended the session, hw latched the miss fault.
+  EkiFeed f = ekiUp();
+  f.rsi_active = false;
+  rt.feedEkiState(f);
+  rt.feedRsiState(false, true);   // connected=false, fault=true (latched)
+  ASSERT_TRUE(waitFor(
+      [&] { return rt.snapshot().state == SystemState::READY; }, 2000));
+  EXPECT_TRUE(waitFor(
+      [&] { return rt.snapshot().state == SystemState::READY; }, 100));
+  rt.stop();
+}
+
+TEST(ManagerRuntime, StartServoPreClearsResidueFault) {
+  // R3: a start over a residue-latched hw fault must call the hw reset
+  // first (otherwise write() sends Stop S=1 into the new session), then
+  // proceed normally.
+  MockOps mock;
+  ManagerRuntime rt{fastConfig(), mock.ops()};
+  mock.rt = &rt;
+  ASSERT_TRUE(rt.start());
+  rt.setControllersLoaded(true);
+  EkiFeed f = ekiUp();
+  f.rsi_active = false;
+  rt.feedEkiState(f);
+  rt.feedSriStatus(true);
+  rt.feedRsiState(false, true);   // residue: hw fault latched, stream dead
+  ASSERT_TRUE(waitFor(
+      [&] { return rt.snapshot().state == SystemState::READY; }, 2000));
+  const CommandResult r = rt.startServo(2, 0);
+  EXPECT_TRUE(r.success) << r.message;
+  EXPECT_TRUE(mock.logged("rsi_reset"));
+  // rsi_reset must have been requested before start_rsi.
+  {
+    std::lock_guard<std::mutex> lock(mock.m);
+    std::size_t i_reset = mock.log.size(), i_start = mock.log.size();
+    for (std::size_t i = 0; i < mock.log.size(); ++i) {
+      if (mock.log[i] == "rsi_reset" && i_reset == mock.log.size())
+        i_reset = i;
+      if (mock.log[i] == "start_rsi" && i_start == mock.log.size())
+        i_start = i;
+    }
+    EXPECT_LT(i_reset, i_start);
+  }
   rt.stop();
 }

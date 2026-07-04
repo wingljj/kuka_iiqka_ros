@@ -143,3 +143,95 @@ TEST(SystemState, RejectionsCarryReasons) {
   EXPECT_FALSE(v.accepted);
   EXPECT_STRNE(v.reason, "");
 }
+
+// ---- Plan 6 Task 2: EKI semantic layering (Plan 5 followup I-1) ----
+// While RSI_MOVECORR blocks the KRL loop the EKI heartbeat stops by
+// design (Task 9 review observation). RSI liveness supersedes the
+// heartbeat for supervision during any RSI-active phase (rule R1), and
+// a latched hw fault observed while idle with a fresh heartbeat and
+// rsi_active=false is the residue of the previous RSI session, not a
+// live failure (rule R2).
+
+namespace {
+
+// Real-robot SERVOING during MOVECORR: heartbeat stale, RSI stream alive.
+HealthInputs servoingHeartbeatStale() {
+  HealthInputs in = full();
+  in.eki_heartbeat_fresh = false;   // state_fresh dropped by the bridge
+  in.eki_tcp_connected = true;      // TCP still up
+  in.eki_link = false;              // legacy aggregate (what R1 relaxes)
+  return in;
+}
+
+}  // namespace
+
+TEST(SystemState, ServoingToleratesStaleHeartbeatWhileRsiAlive) {
+  SystemStateCore c;
+  HealthInputs start_in = ready();
+  start_in.rsi_topic_fresh = true;
+  ASSERT_EQ(c.update(ready()), SystemState::READY);
+  ASSERT_TRUE(c.requestStart(start_in).accepted);
+  ASSERT_EQ(c.update(full()), SystemState::SERVOING);
+
+  // MOVECORR phase: heartbeat stale but the 50 Hz RSI channel is alive.
+  EXPECT_EQ(c.update(servoingHeartbeatStale()), SystemState::SERVOING);
+
+  // TCP loss is NOT tolerated even with RSI alive.
+  HealthInputs tcp_down = servoingHeartbeatStale();
+  tcp_down.eki_tcp_connected = false;
+  EXPECT_EQ(c.update(tcp_down), SystemState::DEGRADED);
+
+  // RSI stream death revokes the tolerance: nothing proves the KRL is
+  // alive any more -> DEGRADED (and the hw fault path follows separately).
+  HealthInputs rsi_dead = servoingHeartbeatStale();
+  rsi_dead.rsi_topic_fresh = false;
+  rsi_dead.rsi_connected = false;
+  EXPECT_EQ(c.update(rsi_dead), SystemState::DEGRADED);
+}
+
+TEST(SystemState, IdleRsiActiveRidesRsiChannel) {
+  // Commissioning Stage 2: RSI zero-output loop started by a direct
+  // bridge call; the manager stays READY on the strength of the RSI
+  // stream even though the heartbeat pauses during MOVECORR.
+  SystemStateCore c;
+  ASSERT_EQ(c.update(ready()), SystemState::READY);
+  HealthInputs in = servoingHeartbeatStale();  // full() variant, no servo req
+  EXPECT_EQ(c.update(in), SystemState::READY);
+}
+
+TEST(SystemState, StaleSessionFaultIsMaskedWhenIdle) {
+  // Clean-stop endgame: the RSI stream ended, the hw latched its 5-miss
+  // fault, the heartbeat recovered and the KRC reports rsi_active=false.
+  // That fault is residue of the finished session: stay READY.
+  SystemStateCore c;
+  ASSERT_EQ(c.update(ready()), SystemState::READY);
+  HealthInputs residue = ready();
+  residue.rsi_topic_fresh = true;   // hw node alive, publishing fault=true
+  residue.rsi_fault = true;
+  residue.eki_heartbeat_fresh = true;
+  residue.eki_rsi_active = false;   // KRC: no RSI context active
+  EXPECT_EQ(c.update(residue), SystemState::READY);
+
+  // Without heartbeat recovery there is no evidence: conservative FAULT.
+  HealthInputs unknown = residue;
+  unknown.eki_heartbeat_fresh = false;
+  unknown.eki_link = false;
+  unknown.eki_tcp_connected = true;
+  EXPECT_EQ(c.update(unknown), SystemState::FAULT);
+}
+
+TEST(SystemState, ActiveSessionFaultStillLatches) {
+  // R2 must never mask a fault during a requested servo or calibration.
+  SystemStateCore c;
+  HealthInputs start_in = ready();
+  start_in.rsi_topic_fresh = true;
+  ASSERT_EQ(c.update(ready()), SystemState::READY);
+  ASSERT_TRUE(c.requestStart(start_in).accepted);
+  ASSERT_EQ(c.update(full()), SystemState::SERVOING);
+
+  HealthInputs faulted = full();
+  faulted.rsi_fault = true;
+  faulted.eki_rsi_active = false;   // even if the KRC already dropped it
+  EXPECT_EQ(c.update(faulted), SystemState::FAULT);
+  EXPECT_EQ(c.update(full()), SystemState::FAULT);  // latched
+}

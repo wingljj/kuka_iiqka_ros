@@ -20,6 +20,15 @@ enum class SystemState : std::uint8_t {
 // (message age vs threshold); the core stays clock-free and testable.
 struct HealthInputs {
   bool eki_link{false};         // TCP up && RobotState heartbeat fresh
+  // I-1 layering inputs (Plan 6 Task 2): the raw components of eki_link,
+  // plus the KRC's own view of the RSI context. During RSI_MOVECORR the
+  // KRL heartbeat pauses by design, so eki_link alone cannot supervise
+  // an RSI-active phase (rule R1), and a latched hw fault seen while
+  // idle with a fresh heartbeat and rsi_active=false is residue of the
+  // finished RSI session (rule R2).
+  bool eki_tcp_connected{false};   // TCP link up (heartbeat not required)
+  bool eki_heartbeat_fresh{false}; // topic fresh && msg.state_fresh
+  bool eki_rsi_active{false};      // last EkiState.rsi_active
   bool eki_program_ready{false};
   bool eki_fault{false};        // KRC-side latched fault
   bool rsi_topic_fresh{false};  // /kuka/rsi/state age within threshold
@@ -55,6 +64,12 @@ class SystemStateCore {
  private:
   static bool readyConditions(const HealthInputs& in);
   static bool fullConditions(const HealthInputs& in);
+  // I-1 rules (Plan 6 Task 2). R1: with the RSI stream alive, EKI is
+  // considered linked as long as TCP is up. R2: a latched hw fault is
+  // session residue (maskable) only when no servo/calibration is
+  // requested AND the recovered heartbeat shows rsi_active=false.
+  static bool ekiLinkLayered(const HealthInputs& in);
+  bool faultIsSessionResidue(const HealthInputs& in) const;
   SystemState state_{SystemState::OFFLINE};
   bool servo_requested_{false};
   bool calibrating_{false};
