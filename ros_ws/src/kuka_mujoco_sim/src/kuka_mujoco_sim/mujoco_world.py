@@ -28,6 +28,7 @@ class MujocoWorld:
         self.data = mujoco.MjData(self.model)
         self._mocap_id = self.model.body('target').mocapid[0]
         self._flange_bid = self.model.body('flange').id
+        self._payload_bid = self.model.body('payload').id
         self._force_adr = self.model.sensor('ft_force').adr[0]
         self._torque_adr = self.model.sensor('ft_torque').adr[0]
         self._site_id = self.model.site('ft_site').id
@@ -104,6 +105,19 @@ class MujocoWorld:
         f = -self.data.sensordata[self._force_adr:self._force_adr + 3].copy()
         t = -self.data.sensordata[self._torque_adr:self._torque_adr + 3].copy()
         return (f[0], f[1], f[2], t[0], t[1], t[2])
+
+    def apply_external_force(self, fx, fy, fz, tx=0.0, ty=0.0, tz=0.0):
+        """Simulate a human hand-drag: a persistent external wrench (WORLD
+        frame) applied at the payload body's COM. MuJoCo keeps xfrc_applied in
+        effect across mj_step until it is changed, so the drag holds while the
+        controller complies. The wrench transmits through the payload<-flange
+        connection, so the FT sensor picks it up and the force-compliance loop
+        reacts -- this is the programmatic stand-in for a user dragging the GUI
+        end-effector. Call with all zeros to release."""
+        self.data.xfrc_applied[self._payload_bid, :] = [fx, fy, fz, tx, ty, tz]
+
+    def clear_external_force(self):
+        self.data.xfrc_applied[self._payload_bid, :] = 0.0
 
     def push_into_wall(self, depth_mm):
         """Test helper: move target from current flange pose toward the wall

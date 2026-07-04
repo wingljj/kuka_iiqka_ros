@@ -61,3 +61,34 @@ def test_contact_produces_reaction_force():
     w.step(400)
     f1 = np.linalg.norm(w.get_sensor_wrench()[:3])
     assert f1 > f0 + 1.0  # contact force appeared
+
+
+def test_external_force_shows_on_sensor_same_axis():
+    # A programmatic hand-drag (external +X force on the payload) must show up
+    # on the FT sensor's X axis so the force-compliance loop can react to it.
+    # Identity mount keeps gravity on -Z, isolating the drag on X.
+    w = make_world(wall_enabled=False, payload_mass=2.0)
+    w.set_target_pose(w.home_pose6)
+    w.step(200)
+    fx0 = w.get_sensor_wrench()[0]
+    w.apply_external_force(40.0, 0.0, 0.0)
+    w.step(200)
+    fx1 = w.get_sensor_wrench()[0]
+    # The +40 N drag dominates the X reading with the SAME sign (gravity is on
+    # -Z under identity mount, leaving X ~0 before the drag). Same-sign matters:
+    # after gravity compensation the controller moves WITH the +X force, so the
+    # sensor must report +X, not -X.
+    assert (fx1 - fx0) > 30.0, f"drag not seen on sensor +X: {fx0}->{fx1}"
+
+
+def test_clear_external_force_removes_drag():
+    w = make_world(wall_enabled=False, payload_mass=2.0)
+    w.set_target_pose(w.home_pose6)
+    w.apply_external_force(40.0, 0.0, 0.0)
+    w.step(200)
+    fx_dragged = w.get_sensor_wrench()[0]
+    w.clear_external_force()
+    w.step(200)
+    fx_released = w.get_sensor_wrench()[0]
+    assert abs(fx_dragged) > 30.0
+    assert abs(fx_released) < 5.0, f"drag not cleared: {fx_released}"
