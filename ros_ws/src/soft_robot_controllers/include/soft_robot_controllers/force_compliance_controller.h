@@ -5,12 +5,14 @@
 #include <realtime_tools/realtime_buffer.h>
 #include <realtime_tools/realtime_publisher.h>
 #include <ros/ros.h>
+#include <soft_robot_msgs/EkiState.h>
 #include <soft_robot_msgs/ModeCommand.h>
 #include <soft_robot_msgs/ModeState.h>
 #include <soft_robot_msgs/RsiState.h>
 
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 #include "kuka_rsi_hw_interface/cartesian_command_interface.h"
 #include "soft_robot_controllers/controller_mode_gate.h"
@@ -22,6 +24,14 @@ namespace soft_robot_controllers {
 struct WrenchSample {
   sfc::Wrench w;
   double stamp_s{0};
+  bool valid{false};
+};
+
+// Latest $TOOL A/B/C from the EKI bridge; locked into the core at mode
+// entry (session-constant, spec tool-frame design). valid stays false
+// until the first connected EkiState arrives.
+struct ToolSample {
+  double a{0}, b{0}, c{0};
   bool valid{false};
 };
 
@@ -53,6 +63,7 @@ class ForceComplianceController
   void injectRsiFault(bool fault) {
     fault_buf_.writeFromNonRT(FaultFlag{fault});
   }
+  void injectTool(const ToolSample& t) { tool_buf_.writeFromNonRT(t); }
 
   const ControllerModeGate& gate() const { return gate_; }
 
@@ -60,7 +71,9 @@ class ForceComplianceController
   void wrenchCb(const geometry_msgs::WrenchStamped::ConstPtr& msg);
   void modeCb(const soft_robot_msgs::ModeCommand::ConstPtr& msg);
   void rsiStateCb(const soft_robot_msgs::RsiState::ConstPtr& msg);
+  void ekiStateCb(const soft_robot_msgs::EkiState::ConstPtr& msg);
   sfc::CartesianState readState() const;
+  void activateCore();
   void setZero();
   void publishState(const ros::Time& time, bool degraded);
 
@@ -73,11 +86,14 @@ class ForceComplianceController
   realtime_tools::RealtimeBuffer<WrenchSample> wrench_buf_;
   realtime_tools::RealtimeBuffer<ModeRequest> mode_buf_;
   realtime_tools::RealtimeBuffer<FaultFlag> fault_buf_;
+  realtime_tools::RealtimeBuffer<ToolSample> tool_buf_;
   std::uint64_t mode_seq_{0};  // producer side (subscriber thread / tests)
+  double mount_a_{0}, mount_b_{0}, mount_c_{0};  // sensor_to_flange_rpy [deg]
 
   ros::Subscriber wrench_sub_;
   ros::Subscriber mode_sub_;
   ros::Subscriber rsi_sub_;
+  ros::Subscriber eki_sub_;
   std::unique_ptr<
       realtime_tools::RealtimePublisher<soft_robot_msgs::ModeState>>
       state_pub_;

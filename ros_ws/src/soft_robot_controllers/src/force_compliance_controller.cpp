@@ -81,6 +81,15 @@ bool ForceComplianceController::init(
   loadPayload(controller_nh, payload);
   double wrench_timeout = 0.012;
   controller_nh.param("wrench_timeout", wrench_timeout, wrench_timeout);
+  std::vector<double> mount_rpy{0.0, 0.0, 0.0};
+  controller_nh.param("sensor_to_flange_rpy", mount_rpy, mount_rpy);
+  if (mount_rpy.size() == 3) {
+    mount_a_ = mount_rpy[0];
+    mount_b_ = mount_rpy[1];
+    mount_c_ = mount_rpy[2];
+  } else {
+    ROS_WARN("sensor_to_flange_rpy must have 3 elements; using identity");
+  }
   drag.safety = safety;
   precision.safety = safety;
   drag.payload = payload;
@@ -118,6 +127,12 @@ bool ForceComplianceController::init(
                                 &ForceComplianceController::modeCb, this);
   rsi_sub_ = root_nh.subscribe(rsi_topic, 1,
                                &ForceComplianceController::rsiStateCb, this);
+  std::string eki_topic;
+  controller_nh.param<std::string>("eki_state_topic", eki_topic,
+                                   std::string("/kuka/eki/state"));
+  eki_sub_ =
+      root_nh.subscribe(eki_topic, 1, &ForceComplianceController::ekiStateCb,
+                        this);
   state_pub_.reset(
       new realtime_tools::RealtimePublisher<soft_robot_msgs::ModeState>(
           root_nh, state_topic, 4));
@@ -134,6 +149,7 @@ bool ForceComplianceController::configureController(
   wrench_buf_.writeFromNonRT(WrenchSample{});
   mode_buf_.writeFromNonRT(ModeRequest{});
   fault_buf_.writeFromNonRT(FaultFlag{});
+  tool_buf_.writeFromNonRT(ToolSample{});
   return true;
 }
 
@@ -171,6 +187,17 @@ void ForceComplianceController::rsiStateCb(
   injectRsiFault(msg->fault);
 }
 
+void ForceComplianceController::ekiStateCb(
+    const soft_robot_msgs::EkiState::ConstPtr& msg) {
+  if (!msg->connected) return;  // keep the last known tool
+  ToolSample t;
+  t.a = msg->tool_a;
+  t.b = msg->tool_b;
+  t.c = msg->tool_c;
+  t.valid = true;
+  injectTool(t);
+}
+
 sfc::CartesianState ForceComplianceController::readState() const {
   sfc::CartesianState s;
   s.x = handle_.getX();
@@ -182,6 +209,29 @@ sfc::CartesianState ForceComplianceController::readState() const {
   return s;
 }
 
+void ForceComplianceController::activateCore() {
+  const ToolSample tool = *tool_buf_.readFromRT();
+  ToolFrameConfig tf;
+  if (tool.valid) {
+    tf.tool_a = tool.a;
+    tf.tool_b = tool.b;
+    tf.tool_c = tool.c;
+  } else {
+    ROS_WARN_ONCE(
+        "FORCE_COMPLIANCE activated without EKI tool data; assuming identity "
+        "tool rotation");
+  }
+  tf.mount_a = mount_a_;
+  tf.mount_b = mount_b_;
+  tf.mount_c = mount_c_;
+  if (core_.payload().gravity_n == 0.0) {
+    ROS_WARN_ONCE(
+        "payload not calibrated (gravity_n == 0): zero-only mode, "
+        "orientation changes will drift");
+  }
+  core_.activate(readState(), tf);
+}
+
 void ForceComplianceController::setZero() {
   handle_.setCommand(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
 }
@@ -191,7 +241,7 @@ void ForceComplianceController::starting(const ros::Time& /*time*/) {
   if (gate_.engaged()) {
     // Controller restarted while the mode is still active: re-activate so
     // the ramp/re-tare reference matches the current pose.
-    core_.activate(readState());
+    activateCore();
   }
 }
 
@@ -201,7 +251,7 @@ void ForceComplianceController::update(const ros::Time& time,
   if (gate_.apply(req)) {  // entered FORCE_COMPLIANCE on this cycle
     const bool drag = gate_.snapshot().profile == sfc::Profile::DRAG;
     core_.configure(drag ? drag_params_ : precision_params_);
-    core_.activate(readState());
+    activateCore();
   }
   const bool fault = fault_buf_.readFromRT()->fault;
   if (!gate_.engaged() || fault) {

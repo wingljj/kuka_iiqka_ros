@@ -6,6 +6,7 @@
 
 using soft_robot_controllers::ForceComplianceController;
 using soft_robot_controllers::ForceComplianceParams;
+using soft_robot_controllers::ToolSample;
 using soft_robot_controllers::WrenchSample;
 namespace msg = soft_robot_msgs;
 
@@ -148,4 +149,45 @@ TEST_F(FccControllerTest, DragEntryRunsStartupRamp) {
   // Learned deadband = 0 + 5 N margin; 40 N now produces output.
   cycle(40.0, kT0 + 0.004 * 5);
   EXPECT_NEAR(cmd_[2], (40.0 - 5.0) * 1.0 * 0.004, 1e-12);
+}
+
+TEST_F(FccControllerTest, ToolRotationRemapsCorrection) {
+  // $TOOL A=90 注入后进入模式:传感器 +X 40N -> 工具 -Y -> BASE(姿态恒等)
+  // 输出 y=-0.04。未实现时输出会落在 x 上。
+  ToolSample t;
+  t.a = 90.0;
+  t.valid = true;
+  ctl_.injectTool(t);
+  ctl_.injectModeCommand(msg::ModeCommand::MODE_FORCE_COMPLIANCE,
+                         msg::ModeCommand::PROFILE_PRECISION);
+  WrenchSample s;
+  s.w.fx = 40.0;
+  s.stamp_s = kT0;
+  s.valid = true;
+  ctl_.injectWrench(s);
+  ctl_.update(ros::Time(kT0), ros::Duration(0.004));
+  EXPECT_NEAR(cmd_[0], 0.0, 1e-12);
+  EXPECT_NEAR(cmd_[1], -0.04, 1e-12);
+}
+
+TEST_F(FccControllerTest, MissingToolDataDegradesToIdentity) {
+  // 不注入工具数据:行为与现状一致(恒等工具),+Z 40N -> z=0.04。
+  ctl_.injectModeCommand(msg::ModeCommand::MODE_FORCE_COMPLIANCE,
+                         msg::ModeCommand::PROFILE_PRECISION);
+  cycle(40.0, kT0);
+  EXPECT_NEAR(cmd_[2], 0.04, 1e-12);
+}
+
+TEST_F(FccControllerTest, ToolLockedAtActivationNotLive) {
+  // 会话内锁存:进入模式后再改工具数据不得影响当前会话。
+  ctl_.injectModeCommand(msg::ModeCommand::MODE_FORCE_COMPLIANCE,
+                         msg::ModeCommand::PROFILE_PRECISION);
+  cycle(40.0, kT0);
+  EXPECT_NEAR(cmd_[2], 0.04, 1e-12);  // 恒等工具下的 +Z 响应
+  ToolSample t;
+  t.a = 90.0;
+  t.valid = true;
+  ctl_.injectTool(t);  // servo 中途到达的工具数据
+  cycle(40.0, kT0 + 0.004);
+  EXPECT_NEAR(cmd_[2], 0.04, 1e-12);  // 仍按恒等工具响应
 }
