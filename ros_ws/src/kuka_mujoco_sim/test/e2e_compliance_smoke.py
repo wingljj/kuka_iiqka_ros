@@ -10,6 +10,9 @@ It is the automation of "启动伺服 -> 施力 -> 运动" so we stop verifying 
 Run it inside a sourced workspace:
     source devel/setup.bash
     rosrun kuka_mujoco_sim e2e_compliance_smoke.py          # self-launches stack
+    rosrun kuka_mujoco_sim e2e_compliance_smoke.py --gui     # + open the viewer
+                                                             #   so you SEE the
+                                                             #   green target creep
     # or against an already-running stack:
     rosrun kuka_mujoco_sim e2e_compliance_smoke.py --external
 
@@ -22,6 +25,8 @@ plan asked to nail first (gravity fully on -Z, compensated by the launch
 bridge; drag on +X). The mount!=0 alignment is covered separately by the
 offline test/test_gravity_equivalence.py.
 """
+import os
+import signal
 import subprocess
 import sys
 import time
@@ -39,6 +44,7 @@ def _log(msg):
 
 def main():
     external = "--external" in sys.argv
+    gui = "--gui" in sys.argv  # watch the automated drag move the GREEN target
     launch = None
     try:
         import rospy
@@ -50,12 +56,22 @@ def main():
         return 2
 
     if not external:
-        _log("launching mujoco_sim.launch (headless, payload=2.0, mount=[0,0,0])")
+        _log("launching mujoco_sim.launch (%s, payload=2.0, mount=[0,0,0])"
+             % ("GUI" if gui else "headless"))
+        # start_new_session=True puts roslaunch AND all its C++ child nodes
+        # (eki_mock_server, manager, drivers) in a fresh process group, so
+        # teardown can signal the WHOLE group. roslaunch's own SIGTERM
+        # sometimes leaves compiled children orphaned; an orphaned
+        # eki_mock_server keeps port 54600 bound, which makes the NEXT launch's
+        # EKI link fail -> never READY -> servo rejected -> "arm doesn't move".
+        # That leak is exactly what made this smoke flaky.
         launch = subprocess.Popen(
             ["roslaunch", "kuka_mujoco_sim", "mujoco_sim.launch",
-             "gui:=false", "payload_mass:=2.0", "mount_abc:=[0.0, 0.0, 0.0]",
+             "gui:=%s" % ("true" if gui else "false"),
+             "payload_mass:=2.0", "mount_abc:=[0.0, 0.0, 0.0]",
              "wall_enabled:=false"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+            stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT,
+            start_new_session=True)
 
     try:
         # Wait for the master + node graph, then init.
@@ -163,12 +179,32 @@ def main():
         return 1
     finally:
         if launch is not None:
-            _log("shutting down stack ...")
-            launch.terminate()
+            _log("shutting down stack (whole process group) ...")
+            try:
+                pgid = os.getpgid(launch.pid)
+            except ProcessLookupError:
+                pgid = None
+            # SIGINT to the group = the same clean shutdown Ctrl-C gives
+            # roslaunch, but delivered to every child too.
+            if pgid is not None:
+                try:
+                    os.killpg(pgid, signal.SIGINT)
+                except ProcessLookupError:
+                    pgid = None
             try:
                 launch.wait(timeout=15)
             except subprocess.TimeoutExpired:
-                launch.kill()
+                # Escalate: SIGKILL the whole group so no C++ node is orphaned
+                # (a leaked eki_mock_server on :54600 breaks the next launch).
+                if pgid is not None:
+                    try:
+                        os.killpg(pgid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                try:
+                    launch.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    pass
 
 
 if __name__ == "__main__":

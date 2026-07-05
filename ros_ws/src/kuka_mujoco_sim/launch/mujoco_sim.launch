@@ -47,12 +47,23 @@
        kuka_rsi_sim_server AND sri_mock_server. -->
   <node pkg="kuka_mujoco_sim" type="sim_node" name="kuka_mujoco_sim"
         output="screen">
-    <param name="gui" value="$(arg gui)"/>
     <param name="payload_mass" value="$(arg payload_mass)"/>
     <rosparam param="mount_abc" subst_value="true">$(arg mount_abc)</rosparam>
     <param name="wall_enabled" value="$(arg wall_enabled)"/>
     <param name="rsi_target_port" value="49152"/>
     <param name="sri_listen_port" value="4008"/>
+  </node>
+
+  <!-- Optional viewer as a SEPARATE node/process (gui:=true). It renders in
+       its own process from the sim's published flange_pose and never touches
+       the RSI/SRI sockets, so render stalls cannot starve the RSI UDP link and
+       latch a KRC fault (the "GUI doesn't move" bug). See viewer_node.py. -->
+  <node if="$(arg gui)" pkg="kuka_mujoco_sim" type="viewer_node"
+        name="kuka_mujoco_viewer" output="screen">
+    <param name="payload_mass" value="$(arg payload_mass)"/>
+    <rosparam param="mount_abc" subst_value="true">$(arg mount_abc)</rosparam>
+    <param name="wall_enabled" value="$(arg wall_enabled)"/>
+    <remap from="flange_pose" to="/kuka_mujoco_sim/flange_pose"/>
   </node>
 
   <!-- EKI: reuse existing mock unchanged. -->

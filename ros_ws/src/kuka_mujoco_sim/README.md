@@ -66,7 +66,7 @@ read this before trusting any single command.
 |-------|---------|:---:|------------------------|
 | **1. Unit (offline)** | `pytest test/` | no | Pure logic: RSI/SRI frame encode-decode, `frame_conventions` coordinate transforms, endpoint handshake/integration logic, the scenario report framework. Deterministic, fast, no physics. |
 | **2. Physics scenarios** | `scripts/run_scenarios.py` | yes | **World-level physical observables**: gravity projection changes with orientation, contact reaction appears, mount offset redistributes the wrench, uncompensated gravity is observable. Asserts on force / displacement / direction of the *physics world only*. |
-| **3. End-to-end closed loop** | `roslaunch kuka_mujoco_sim mujoco_sim.launch` + `rosrun kuka_mujoco_sim e2e_compliance_smoke.py` | yes + ROS | The **real controller in the loop**: RSI does not fault, the force-control manager consumes the wrench and produces corrections that move the flange. The `e2e_compliance_smoke.py` script automates it (start servo → inject drag → assert the flange moves); also observable live via GUI. This is the only layer that exercises the full force→controller→motion chain. |
+| **3. End-to-end closed loop** | `rosrun kuka_mujoco_sim e2e_compliance_smoke.py` (headless, authoritative) | yes + ROS | The **real controller in the loop**: RSI does not fault, the force-control manager consumes the wrench and produces corrections that move the flange. The script automates it (start servo → inject drag → assert the flange moves > 5 mm) with honest exit codes. **Run headless** — the optional `gui:=true` viewer is a qualitative aid and may not move on a soft-real-time host (see "GUI 局限"). This is the only layer that exercises the full force→controller→motion chain. |
 
 ### Honest note on what layer 2 does *not* prove
 
@@ -99,10 +99,12 @@ roslaunch kuka_mujoco_sim mujoco_sim.launch gui:=true payload_mass:=2.0 mount_ab
 rosrun kuka_mujoco_sim e2e_compliance_smoke.py
 ```
 
-Launch args: `gui` (open the MuJoCo viewer), `payload_mass` (kg, default 1.0),
-`mount_abc` (sensor mount A/B/C in degrees, default `[0,0,0]`), `wall_enabled`
-(contact wall on/off, default true). `payload_mass` and `mount_abc` are fed to
-**both** the MuJoCo world and the controller (see next section).
+Launch args: `gui` (open the MuJoCo viewer as a **separate `viewer_node`
+process**; qualitative aid only — see "GUI 局限"), `payload_mass` (kg, default
+1.0), `mount_abc` (sensor mount A/B/C in degrees, default `[0,0,0]`),
+`wall_enabled` (contact wall on/off, default true). `payload_mass` and
+`mount_abc` are fed to **both** the MuJoCo world and the controller (see next
+section).
 
 ## 让它真正动起来 (making the arm actually move)
 
@@ -164,14 +166,53 @@ covered offline by `test/test_gravity_equivalence.py`.
 
 ### Still not moving? checklist
 
-1. `rostopic echo /soft_robot/mode_state` → `system_state: 3` (SERVOING). If not,
-   the gate is not engaged — the controller zeroes output regardless of force.
-2. `rosparam get /force_compliance_controller/payload/gravity_n` → non-zero
-   (should be `payload_mass × 9.81`). Zero means the passthrough did not load.
-3. `rosout` must **not** show `payload not calibrated (gravity_n == 0)`.
-4. Give it a few seconds of push and watch the **green** box — it creeps.
+1. **Kill leftover zombies FIRST.** A stale node from a previous, un-clean
+   shutdown is the #1 cause of "it just won't move." The EKI mock is a
+   *single-client* server (`listen(fd, 1)`); a leftover `eki_bridge_node` from a
+   prior run keeps that one slot, so the new bridge connects at TCP level but
+   never gets serviced → `eki_connected` stays false → system never reaches
+   READY → servo is rejected → no motion. `pkill -f "devel/lib/"` is **not
+   reliable** for the compiled C++ nodes here. Use:
+   ```bash
+   ps -eo pid,cmd | grep -E "eki_bridge|eki_mock|sri_driver|soft_robot_manager|kuka_rsi_hw|sim_node|viewer_node|rosmaster|roslaunch|mujoco" \
+     | grep -v grep | awk '{print $1}' | xargs -r kill -9
+   ss -tulpn | grep -E ":54600|:4008|:49152|:11311"   # must print nothing
+   ```
+   (`e2e_compliance_smoke.py` now tears down its own stack as a process group,
+   so back-to-back e2e runs no longer leak — this is only for manual launches.)
+2. `rostopic echo /soft_robot/manager_state` → `system_state: 2` (READY) before
+   servo, `eki_connected/rsi_connected/sri_streaming` all **true**. If EKI is
+   false, see step 1.
+3. `rostopic echo /soft_robot/mode_state` → `system_state: 3` (SERVOING) after
+   servo. If not, the gate is not engaged — the controller zeroes output.
+4. `rosparam get /force_compliance_controller/payload/gravity_n` → non-zero
+   (`payload_mass × 9.81`). Zero means the passthrough did not load, and
+   `rosout` will show `payload not calibrated (gravity_n == 0)`.
+5. Give it a few seconds of push and watch the **green** box — it creeps.
 
+### GUI 局限 (why `gui:=true` may not move on your machine)
 
+**The authoritative verification is headless** (`rosrun kuka_mujoco_sim
+e2e_compliance_smoke.py`). The MuJoCo viewer is a *qualitative* aid only.
+
+Measured, single-variable result (same clean start, only `gui` differs):
+headless → flange moves **+69.9 mm** (PASS); `gui:=true` → **+0.00 mm** (FAIL)
+on this dev machine. Root cause: the viewer runs as a **separate process**
+(`viewer_node`, so it can't stall the RSI loop in-process — that was an earlier
+bug), but it still competes for CPU/GPU on the same host. That jitter pushes
+sim_node's SRI frame interval past the controller's **12 ms `wrench_timeout`**
+(measured ~15 ms peaks under gui), which trips the controller's stale-wrench
+zero-output path and suppresses compliance motion. RSI also takes occasional
+timeouts. This is the **soft-real-time host vs. hard-real-time controller** gap,
+not a defect in the force-compliance fix.
+
+Practical guidance:
+- **Verify with headless e2e**, which is stable and repeatable.
+- If you want to *watch* motion, either try the viewer on a more capable
+  machine, or record `flange_position`/`flange_pose` to a `rosbag` during a
+  headless run and replay it into the viewer offline.
+- Do **not** read "the arm didn't move with `gui:=true`" as a regression;
+  reproduce headless first (after the zombie-kill in step 1).
 
 ## Assertion thresholds and their rationale
 
@@ -215,6 +256,13 @@ The force-loop parameter-passthrough fix (why the arm now moves) and its
 remaining honest gaps — COM offset / `bias` / the 8-pose calibration chain not
 yet verified in-loop, velocity-type creep, INIT-time param read — are tracked in
 [`docs/superpowers/followups/2026-07-05-mujoco-force-loop-fix-followups.md`](../../../docs/superpowers/followups/2026-07-05-mujoco-force-loop-fix-followups.md).
+
+The teardown-leak fix (leftover zombie `eki_bridge_node` on the single-client
+EKI mock = the "reproducibly won't move" cause) and the standalone-`viewer_node`
+change (plus the honest GUI limitation: viewer CPU/GPU jitter can trip the
+controller's 12 ms `wrench_timeout` on a soft-real-time host, so `gui:=true` may
+not move — verify headless) are tracked in
+[`docs/superpowers/followups/2026-07-05-mujoco-teardown-viewer-followups.md`](../../../docs/superpowers/followups/2026-07-05-mujoco-teardown-viewer-followups.md).
 
 ## MJCF tunable points (`models/kuka_tcp_scene.xml`)
 

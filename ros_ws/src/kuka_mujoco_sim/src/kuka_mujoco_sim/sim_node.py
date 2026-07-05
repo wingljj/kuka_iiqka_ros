@@ -5,7 +5,7 @@ import os
 import socket
 import rospy
 
-from geometry_msgs.msg import Wrench, PointStamped
+from geometry_msgs.msg import Wrench, PointStamped, PoseStamped
 
 from .mujoco_world import MujocoWorld
 from .rsi_endpoint import RsiEndpoint
@@ -21,7 +21,6 @@ class SimNode:
         rsi_ip = rospy.get_param('~rsi_target_ip', '127.0.0.1')
         rsi_port = rospy.get_param('~rsi_target_port', 49152)
         sri_port = rospy.get_param('~sri_listen_port', 4008)
-        self._gui = rospy.get_param('~gui', False)
 
         self.world = MujocoWorld(model, mount_abc_deg=tuple(mount),
                                  payload_mass=payload_mass, wall_enabled=wall)
@@ -45,11 +44,14 @@ class SimNode:
         # green mocap target actually moved under an applied force.
         self._pose_pub = rospy.Publisher('~flange_position', PointStamped,
                                           queue_size=1)
-        self._viewer = None
-        if self._gui:
-            import mujoco.viewer
-            self._viewer = mujoco.viewer.launch_passive(
-                self.world.model, self.world.data)
+        # Full SI pose (m + quaternion) for the STANDALONE viewer node. The
+        # viewer runs in its own process and only renders; it never touches the
+        # RSI/SRI sockets. This keeps rendering stalls out of this loop's time
+        # budget -- an in-process viewer.sync() here would starve the RSI UDP
+        # link (KRC hw_interface faults after 5 missed 8ms reads) and latch a
+        # fault -> DEGRADED -> no compliance motion. See viewer_node.py.
+        self._flange_pose_pub = rospy.Publisher('~flange_pose', PoseStamped,
+                                                queue_size=1)
 
     def _default_model(self):
         here = os.path.dirname(os.path.abspath(__file__))
@@ -65,8 +67,9 @@ class SimNode:
         while not rospy.is_shutdown():
             actual = self.world.get_actual_pose()
             self.rsi.send_state(self.sock, actual)
+            now = rospy.Time.now()
             msg = PointStamped()
-            msg.header.stamp = rospy.Time.now()
+            msg.header.stamp = now
             msg.point.x, msg.point.y, msg.point.z = actual[0], actual[1], actual[2]
             self._pose_pub.publish(msg)
             try:
@@ -80,15 +83,23 @@ class SimNode:
             self.world.step(1)
             self.sri.set_wrench(self.world.get_sensor_wrench())
             self.sri.send_frame_if_streaming()
-            if self._viewer is not None:
-                self._viewer.sync()
+            # Publish full flange pose for the standalone viewer (cheap: no
+            # render here, so RSI timing is untouched).
+            pos_m, quat = self.world.get_flange_pose_m()
+            pmsg = PoseStamped()
+            pmsg.header.stamp = now
+            pmsg.pose.position.x, pmsg.pose.position.y, pmsg.pose.position.z = (
+                float(pos_m[0]), float(pos_m[1]), float(pos_m[2]))
+            pmsg.pose.orientation.w = float(quat[0])
+            pmsg.pose.orientation.x = float(quat[1])
+            pmsg.pose.orientation.y = float(quat[2])
+            pmsg.pose.orientation.z = float(quat[3])
+            self._flange_pose_pub.publish(pmsg)
             rate.sleep()
 
     def shutdown(self):
         self.sri.stop()
         self.sock.close()
-        if self._viewer is not None:
-            self._viewer.close()
 
 
 def main():

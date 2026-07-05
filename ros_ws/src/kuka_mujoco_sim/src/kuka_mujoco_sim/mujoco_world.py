@@ -79,6 +79,22 @@ class MujocoWorld:
         return (pos_m[0] * fc.MM_PER_M, pos_m[1] * fc.MM_PER_M,
                 pos_m[2] * fc.MM_PER_M, a, b, c)
 
+    def get_flange_pose_m(self):
+        """Flange world pose as (pos_m[3], quat[w,x,y,z]) in SI units. Used by
+        the standalone viewer node to mirror the scene without running its own
+        dynamics (the sim_node loop stays the sole physics/RSI driver)."""
+        bid = self._flange_bid
+        return (self.data.xpos[bid].copy(), self.data.xquat[bid].copy())
+
+    def set_flange_pose_m(self, pos_m, quat_wxyz):
+        """Viewer-side: place the flange free joint at a pose and recompute
+        kinematics only (mj_forward), so child bodies (payload, tip) follow.
+        No mj_step -> no dynamics, no divergence from the authoritative sim."""
+        adr = self.model.jnt_qposadr[self.model.joint('flange_free').id]
+        self.data.qpos[adr:adr + 3] = pos_m
+        self.data.qpos[adr + 3:adr + 7] = quat_wxyz
+        mujoco.mj_forward(self.model, self.data)
+
     def set_target_pose(self, pose6_mm_deg):
         x, y, z, a, b, c = pose6_mm_deg
         self.data.mocap_pos[self._mocap_id] = np.array(
