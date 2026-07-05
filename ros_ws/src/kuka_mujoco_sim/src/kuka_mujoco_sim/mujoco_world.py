@@ -1,16 +1,17 @@
 # src/kuka_mujoco_sim/mujoco_world.py
 """MuJoCo wrapper: elastic pose tracking + contact + FT sensor readout.
 
-The mocap 'target' body is driven to the corrected TCP pose; the 'flange'
-free body tracks it through a weld equality (elastic). Contact with the wall
-pushes the flange off target -> compliance displacement. The FT sensor reads
-contact reaction + payload gravity projected into the sensor frame.
+The mocap 'target' body is driven to the corrected TCP pose; the 'link_6_1'
+(flange) body tracks it through a weld equality constraint, which the MuJoCo
+solver satisfies by adjusting the 6 revolute joints (implicit IK). Contact
+with the wall pushes the flange off target -> compliance displacement. The FT
+sensor reads contact reaction + payload gravity projected into the sensor frame.
 
-The force/torque sensor site sits on the ``payload`` sub-body so its
-``cfrc_int`` isolates the interaction transmitted across the payload<-flange
-connection: payload gravity + any contact reaction picked up by the tip. This
-keeps the free-space gravity magnitude equal to the payload weight (not the
-flange+payload weight).
+The force/torque sensor site sits on the ``payload`` sub-body so its sensor
+output isolates the interaction transmitted across the payload<-flange
+connection: payload gravity + any contact reaction picked up by the tip.
+This keeps the free-space gravity magnitude equal to the payload weight (not
+the flange+payload weight).
 """
 import numpy as np
 import mujoco
@@ -27,7 +28,7 @@ class MujocoWorld:
                                      payload_com_m, wall_enabled)
         self.data = mujoco.MjData(self.model)
         self._mocap_id = self.model.body('target').mocapid[0]
-        self._flange_bid = self.model.body('flange').id
+        self._flange_bid = self.model.body('link_6_1').id
         self._payload_bid = self.model.body('payload').id
         self._force_adr = self.model.sensor('ft_force').adr[0]
         self._torque_adr = self.model.sensor('ft_torque').adr[0]
@@ -39,9 +40,7 @@ class MujocoWorld:
 
     def _load_spec(self, path, mount_abc_deg, payload_mass, payload_com_m,
                    wall_enabled):
-        with open(path, 'r') as fh:
-            xml = fh.read()
-        model = mujoco.MjModel.from_xml_string(xml)
+        model = mujoco.MjModel.from_xml_path(path)
         # Apply runtime overrides on the compiled model.
         if payload_mass is not None:
             bid = model.body('payload').id
@@ -86,13 +85,34 @@ class MujocoWorld:
         bid = self._flange_bid
         return (self.data.xpos[bid].copy(), self.data.xquat[bid].copy())
 
+    def get_joint_angles(self):
+        """The 6 arm joint angles [rad], in joint_1..joint_6 order. These are
+        the authoritative articulated state the weld solver produced this step;
+        the viewer renders from THESE (not from the flange pose) because a
+        mocap + mj_forward pass alone does NOT drive the joints -- weld tracking
+        is a dynamics (mj_step) result, which the viewer deliberately never
+        runs. Copying qpos is the only way the viewer arm matches the sim arm."""
+        return self.data.qpos[:6].copy()
+
+    def set_joint_angles(self, q6):
+        """Viewer-side: write the 6 arm joint angles straight into qpos and
+        recompute kinematics (mj_forward). This reproduces the sim's articulated
+        pose exactly -- every link renders where the physics put it. No mj_step,
+        so the viewer never runs dynamics or diverges from the authoritative
+        sim. Replaces the old mocap-tracking approach, which left the arm frozen
+        at the zero pose because mj_forward does not solve the weld for joints."""
+        self.data.qpos[:6] = np.asarray(q6, dtype=float)
+        mujoco.mj_forward(self.model, self.data)
+
     def set_flange_pose_m(self, pos_m, quat_wxyz):
-        """Viewer-side: place the flange free joint at a pose and recompute
-        kinematics only (mj_forward), so child bodies (payload, tip) follow.
-        No mj_step -> no dynamics, no divergence from the authoritative sim."""
-        adr = self.model.jnt_qposadr[self.model.joint('flange_free').id]
-        self.data.qpos[adr:adr + 3] = pos_m
-        self.data.qpos[adr + 3:adr + 7] = quat_wxyz
+        """Viewer-side (legacy): place the mocap target at a pose and recompute
+        kinematics. NOTE: mj_forward does NOT drive the arm joints to satisfy
+        the weld (that needs mj_step dynamics), so the arm stays at the zero
+        pose while only the green mocap marker moves. Prefer set_joint_angles()
+        for a faithful articulated render. Kept for the marker + any caller that
+        only wants the target position updated."""
+        self.data.mocap_pos[self._mocap_id]  = np.asarray(pos_m,     dtype=float)
+        self.data.mocap_quat[self._mocap_id] = np.asarray(quat_wxyz, dtype=float)
         mujoco.mj_forward(self.model, self.data)
 
     def set_target_pose(self, pose6_mm_deg):

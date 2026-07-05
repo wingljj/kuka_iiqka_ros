@@ -6,6 +6,7 @@ import socket
 import rospy
 
 from geometry_msgs.msg import Wrench, PointStamped, PoseStamped
+from sensor_msgs.msg import JointState
 
 from .mujoco_world import MujocoWorld
 from .rsi_endpoint import RsiEndpoint
@@ -52,11 +53,19 @@ class SimNode:
         # fault -> DEGRADED -> no compliance motion. See viewer_node.py.
         self._flange_pose_pub = rospy.Publisher('~flange_pose', PoseStamped,
                                                 queue_size=1)
+        # The 6 arm joint angles [rad] for the standalone viewer. The viewer
+        # renders from THESE, not from flange_pose: a mocap + mj_forward pass
+        # alone does not drive the joints to satisfy the weld (that is an
+        # mj_step dynamics result), so a flange-pose-only viewer shows the arm
+        # frozen at zero while the green marker moves. Publishing the actual
+        # qpos lets the viewer reproduce the articulated pose exactly.
+        self._joint_pub = rospy.Publisher('~joint_states', JointState,
+                                          queue_size=1)
 
     def _default_model(self):
         here = os.path.dirname(os.path.abspath(__file__))
         return os.path.normpath(
-            os.path.join(here, '..', '..', 'models', 'kuka_tcp_scene.xml'))
+            os.path.join(here, '..', '..', 'models', 'kuka_kr20_scene.xml'))
 
     def _on_drag(self, msg):
         self._drag = (msg.force.x, msg.force.y, msg.force.z,
@@ -72,9 +81,22 @@ class SimNode:
             msg.header.stamp = now
             msg.point.x, msg.point.y, msg.point.z = actual[0], actual[1], actual[2]
             self._pose_pub.publish(msg)
+            # Drain ALL datagrams queued this cycle, not just one: the decoupled
+            # hw_interface loop can leave more than one reply buffered, and we
+            # want the freshest RKorr integrated before we step. First read
+            # blocks up to the socket timeout; the rest are non-blocking.
             try:
                 data, _ = self.sock.recvfrom(4096)
                 self.rsi.apply_reply(data)
+                self.sock.setblocking(False)
+                try:
+                    while True:
+                        data, _ = self.sock.recvfrom(4096)
+                        self.rsi.apply_reply(data)
+                except (socket.error, BlockingIOError):
+                    pass
+                finally:
+                    self.sock.settimeout(0.05)
             except socket.timeout:
                 pass
             self.world.set_target_pose(self.rsi.pose_target6)
@@ -95,6 +117,14 @@ class SimNode:
             pmsg.pose.orientation.y = float(quat[2])
             pmsg.pose.orientation.z = float(quat[3])
             self._flange_pose_pub.publish(pmsg)
+            # Publish the 6 arm joint angles so the viewer renders the actual
+            # articulated pose (weld-driven joints), not a frozen arm.
+            jmsg = JointState()
+            jmsg.header.stamp = now
+            jmsg.name = ['joint_1', 'joint_2', 'joint_3',
+                         'joint_4', 'joint_5', 'joint_6']
+            jmsg.position = [float(q) for q in self.world.get_joint_angles()]
+            self._joint_pub.publish(jmsg)
             rate.sleep()
 
     def shutdown(self):

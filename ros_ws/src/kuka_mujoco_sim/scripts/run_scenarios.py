@@ -10,7 +10,7 @@ from kuka_mujoco_sim.mujoco_world import MujocoWorld  # noqa: E402
 from kuka_mujoco_sim import scenarios  # noqa: E402
 
 MODEL = os.path.join(os.path.dirname(__file__), '..', 'models',
-                     'kuka_tcp_scene.xml')
+                     'kuka_kr20_scene.xml')
 
 
 def world_factory(**kw):

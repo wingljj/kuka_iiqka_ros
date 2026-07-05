@@ -8,6 +8,7 @@
   <arg name="payload_mass" default="1.0"/>
   <arg name="mount_abc" default="[0.0, 0.0, 0.0]"/>
   <arg name="wall_enabled" default="true"/>
+  <arg name="model" default="$(find kuka_mujoco_sim)/models/kuka_kr20_scene.xml"/>
 
   <rosparam command="load"
             file="$(find soft_robot_controllers)/config/soft_robot_controllers.yaml"/>
@@ -47,6 +48,7 @@
        kuka_rsi_sim_server AND sri_mock_server. -->
   <node pkg="kuka_mujoco_sim" type="sim_node" name="kuka_mujoco_sim"
         output="screen">
+    <param name="model_path" value="$(arg model)"/>
     <param name="payload_mass" value="$(arg payload_mass)"/>
     <rosparam param="mount_abc" subst_value="true">$(arg mount_abc)</rosparam>
     <param name="wall_enabled" value="$(arg wall_enabled)"/>
@@ -60,10 +62,12 @@
        latch a KRC fault (the "GUI doesn't move" bug). See viewer_node.py. -->
   <node if="$(arg gui)" pkg="kuka_mujoco_sim" type="viewer_node"
         name="kuka_mujoco_viewer" output="screen">
+    <param name="model_path" value="$(arg model)"/>
     <param name="payload_mass" value="$(arg payload_mass)"/>
     <rosparam param="mount_abc" subst_value="true">$(arg mount_abc)</rosparam>
     <param name="wall_enabled" value="$(arg wall_enabled)"/>
     <remap from="flange_pose" to="/kuka_mujoco_sim/flange_pose"/>
+    <remap from="joint_states" to="/kuka_mujoco_sim/joint_states"/>
   </node>
 
   <!-- EKI: reuse existing mock unchanged. -->

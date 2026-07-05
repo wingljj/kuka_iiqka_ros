@@ -27,7 +27,7 @@ pytest.importorskip("mujoco")  # skip cleanly if MuJoCo absent
 from kuka_mujoco_sim.mujoco_world import MujocoWorld
 
 MODEL = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), '..', 'models', 'kuka_tcp_scene.xml'))
+    os.path.join(os.path.dirname(__file__), '..', 'models', 'kuka_kr20_scene.xml'))
 
 
 def make_world(**kw):

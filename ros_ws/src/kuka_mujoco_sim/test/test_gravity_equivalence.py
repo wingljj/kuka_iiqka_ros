@@ -35,9 +35,9 @@ from kuka_mujoco_sim.mujoco_world import MujocoWorld
 import kuka_mujoco_sim.frame_conventions as fc
 
 MODEL = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), '..', 'models', 'kuka_tcp_scene.xml'))
+    os.path.join(os.path.dirname(__file__), '..', 'models', 'kuka_kr20_scene.xml'))
 
-GRAVITY = 9.81  # matches models/kuka_tcp_scene.xml <option gravity="0 0 -9.81"/>
+GRAVITY = 9.81  # matches models/kuka_kr20_scene.xml <option gravity="0 0 -9.81"/>
 
 
 def _controller_expected_fg(mount_abc, gravity_n):
