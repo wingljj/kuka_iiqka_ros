@@ -59,18 +59,25 @@ For EACH row confirm XML path, attribute name (case!), and type:
 
 ## 4. RSI context (vs rsi_frame.h)
 - [ ] Import/open `ROS_RSI_CONTEXT.rsix` in RSIVisual and verify it loads
-      without schema repair. It is a hand-authored template; if RSIVisual
-      rewrites generated metadata, keep the signal mapping below unchanged.
+      without schema repair. It is derived from KUKA's generated
+      iiQKA OS2 RSIVisual 6.2 `rsi_joint_pos.rsix` example and keeps the
+      full generated `BlueprintCollections` block; if RSIVisual rewrites
+      generated metadata, keep the signal mapping below unchanged.
 - [ ] ETHERNET object uses `ROS_RSI_ETHERNET.xml`.
 - [ ] SEND: RIst(X..C), AIPos(A1..A6), Delay(D), Mode(M), IPOC.
 - [ ] RECEIVE: RKorr(X..C), Stop(S), Watchdog(W), IPOC echo.
 - [ ] SENTYPE="ROS"; PORT=49152; ROS host IP set.
-- [ ] POSCORR: RELATIVE mode, coordinate system BASE, clamp limits set.
+- [ ] PosCorr: RELATIVE mode from `RSI_PROCESS_ON`; `RefCorrSys=Base`;
+      clamp limits set.
 - [ ] Timeout behavior: zero correction + stop after missed answers.
 - [ ] Stop S input is wired as the PC-side real-time stop/break path for
       active RSI motion. If the cell safety concept does not allow this
       wiring, the documented stop path during MOVECORR is the KUKA
       safety/pendant mechanism, and ROS EKI STOP_RSI may time out.
+- [ ] Watchdog W is ETHERNET Out8 in `ROS_RSI_ETHERNET.xml`. The template
+      reserves it but does not attach a generic monitor; wire a KRC-side
+      watchdog in RSIVisual only after choosing the cell-specific timeout
+      behavior.
 
 ## 5. First-contact smoke (with the ROS side up, robot in T1)
 - [ ] eki: rostopic echo /kuka/eki/state -> connected+state_fresh true,

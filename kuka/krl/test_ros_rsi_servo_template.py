@@ -105,25 +105,64 @@ class RosRsiServoTemplateContract(unittest.TestCase):
         self.assertTrue(root.tag.endswith("RsiContext"))
         xml = text(RSIX)
         self.assertLess(xml.index("<BlueprintCollections"), xml.index("<Constructs"))
-        self.assertIn('ObjType="Ethernet"', xml)
-        self.assertIn('ParamValue="ROS_RSI_ETHERNET.xml"', xml)
-        self.assertIn('ObjType="PosCorr"', xml)
-        self.assertIn('ObjType="Stop"', xml)
-        self.assertIn('ParamValue="4"', xml)  # Stop Mode = ExitMoveCorr
-        for signal in (
-            "RKorr.X",
-            "RKorr.Y",
-            "RKorr.Z",
-            "RKorr.A",
-            "RKorr.B",
-            "RKorr.C",
-            "Stop.S",
-            "Watchdog.W",
-        ):
+        self.assertIn("Generated with RSIVisual", xml)
+        self.assertIn("iiQKA.RobotSensorInterface 6.2.0.34", xml)
+        self.assertIn('BlueprintCollection Name="RSI" Version="3.1.0"', xml)
+        self.assertIn('Element Name="PosCorr" Id="27"', xml)
+        self.assertIn('Element Name="Stop" Id="18"', xml)
+        self.assertNotIn("CorrectionCoordinateSystem", xml)
+        self.assertNotIn('ObjType="Input"', xml)
+
+        rsi_objects = root.find("{RsiDriver}RsiObjects")
+        constructs = root.find("{RsiConstruct}Constructs")
+        self.assertIsNotNone(rsi_objects)
+        self.assertIsNotNone(constructs)
+        object_ids = {obj.attrib["ObjId"] for obj in rsi_objects}
+        construct_names = {obj.attrib["Name"] for obj in constructs}
+        self.assertEqual(object_ids, construct_names)
+
+        by_type = {}
+        by_id = {}
+        for obj in rsi_objects:
+            by_type.setdefault(obj.attrib["ObjType"], []).append(obj)
+            by_id[obj.attrib["ObjId"]] = obj
+
+        self.assertEqual(set(by_type), {"Ethernet", "Limit", "PosCorr", "PosCorrMon", "Stop"})
+        self.assertEqual(len(by_type["Limit"]), 6)
+
+        ethernet = by_type["Ethernet"][0]
+        self.assertIn('ParamValue="ROS_RSI_ETHERNET.xml"', ET.tostring(ethernet, encoding="unicode"))
+
+        expected_limits = {
+            "Limit_X": 0,
+            "Limit_Y": 1,
+            "Limit_Z": 2,
+            "Limit_A": 3,
+            "Limit_B": 4,
+            "Limit_C": 5,
+        }
+        for obj_id, out_idx in expected_limits.items():
+            inp = by_id[obj_id].find("{RsiDriver}Inputs/{RsiDriver}Input")
+            self.assertEqual(inp.attrib["OutObjId"], "ETHERNET1")
+            self.assertEqual(inp.attrib["OutIdx"], str(out_idx))
+
+        poscorr = by_type["PosCorr"][0]
+        poscorr_xml = ET.tostring(poscorr, encoding="unicode")
+        self.assertIn('Name="RefCorrSys"', poscorr_xml)
+        self.assertIn('ParamValue="1"', poscorr_xml)  # TrafoCosysType Base
+        for obj_id in expected_limits:
+            self.assertIn(f'OutObjId="{obj_id}"', poscorr_xml)
+
+        stop = by_type["Stop"][0]
+        stop_xml = ET.tostring(stop, encoding="unicode")
+        self.assertIn('OutObjId="ETHERNET1"', stop_xml)
+        self.assertIn('OutIdx="6"', stop_xml)  # ROS_RSI_ETHERNET Out7 = Stop.S
+        self.assertIn('Name="Mode"', stop_xml)
+        self.assertIn('ParamValue="4"', stop_xml)  # Stop Mode = ExitMoveCorr
+
+        for signal in ("RKorr.X", "RKorr.Y", "RKorr.Z", "RKorr.A", "RKorr.B", "RKorr.C", "Stop.S"):
             self.assertIn(signal, xml)
-        self.assertRegex(xml, r'ObjId="Limit_[XYZABC]"')
-        self.assertIn('Name="CorrectionCoordinateSystem"', xml)
-        self.assertIn('ParamValue="BASE"', xml)
+        self.assertIn("Watchdog.W, reserved", xml)
 
 
 if __name__ == "__main__":
