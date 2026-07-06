@@ -5,7 +5,16 @@ DEFDAT ROS_RSI_SERVO
   DECL INT ROS_TOOL_NO = 1        ; TOOL_DATA index used at startup
   DECL INT ROS_BASE_NO = 0        ; BASE_DATA index (0 = $WORLD)
   DECL INT ROS_HB_TIMER_NO = 1    ; $TIMER used for the 100 ms heartbeat
+  DECL INT ROS_HB_PERIOD_MS = 100 ; heartbeat period while EKI loop runs
+  ; VERIFY AGAINST LOCAL MANUAL: this template assumes 0 = success for
+  ; checked EKI_* and RSI_* calls. If the installed options return a status
+  ; struct, adapt ROS_CHECK_RET in the SRC and keep the XML schema unchanged.
+  DECL INT ROS_EKI_OK = 0
+  DECL INT ROS_ERR_OK = 0
+  DECL INT ROS_ERR_NOT_READY = 1
+  DECL INT ROS_ERR_FAULTED = 2
   DECL BOOL bReady = FALSE
+  DECL BOOL bRsiLoaded = FALSE
   DECL BOOL bRsiActive = FALSE
   DECL BOOL bFault = FALSE
   DECL INT nMode = 0

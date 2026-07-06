@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Hand-authored RSIVisual/iiQKA.RobotSensorInterface 6.2 context template.
+  VERIFY IN RSIVisual AGAINST THE LOCAL ROBOTSENSORINTERFACE MANUAL BEFORE
+  DEPLOYMENT. Keep signal names/order aligned with ROS_RSI_ETHERNET.xml and
+  ros_ws/src/kuka_rsi_hw_interface/include/kuka_rsi_hw_interface/rsi_frame.h.
+
+  Receive mapping from ROS_RSI_ETHERNET.xml:
+    ETHERNET1 Out1..Out6 = RKorr.X/Y/Z/A/B/C
+    ETHERNET1 Out7       = Stop.S
+    ETHERNET1 Out8       = Watchdog.W
+
+  Lifecycle note:
+    Stop.S must be wired as ExitMoveCorr so ROS <Stop S="1"/> can break
+    RSI_MOVECORR() while the KRL EKI loop is blocked.
+-->
+<RsiContext xsi:schemaLocation="RsiContext RsiContext.xsd"
+            SchemaVersion="2.0.0"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xmlns="RsiContext">
+  <RsiObjects xmlns="RsiDriver">
+    <RsiObject ObjTypeId="64" ObjType="Ethernet" ObjId="ETHERNET1">
+      <Parameters>
+        <Parameter IsRuntime="false" Name="ConfigFile" ParamId="0"
+                   ParamValue="ROS_RSI_ETHERNET.xml" />
+        <Parameter Name="Timeout" ParamId="0" ParamValue="100" />
+        <Parameter Name="Flag" ParamId="3" ParamValue="1" />
+        <Parameter Name="Precision" ParamId="7" ParamValue="4" />
+      </Parameters>
+    </RsiObject>
+
+    <RsiObject ObjTypeId="39" ObjType="Limit" ObjId="Limit_X">
+      <Inputs>
+        <Input InIdx="0" OutObjId="ETHERNET1" OutIdx="0"
+               SignalName="ETHERNET1|Out1 RKorr.X" />
+      </Inputs>
+      <Parameters>
+        <Parameter Name="LowerLimit" ParamId="0" ParamValue="-5" />
+        <Parameter Name="UpperLimit" ParamId="1" ParamValue="5" />
+      </Parameters>
+    </RsiObject>
+    <RsiObject ObjTypeId="39" ObjType="Limit" ObjId="Limit_Y">
+      <Inputs>
+        <Input InIdx="0" OutObjId="ETHERNET1" OutIdx="1"
+               SignalName="ETHERNET1|Out2 RKorr.Y" />
+      </Inputs>
+      <Parameters>
+        <Parameter Name="LowerLimit" ParamId="0" ParamValue="-5" />
+        <Parameter Name="UpperLimit" ParamId="1" ParamValue="5" />
+      </Parameters>
+    </RsiObject>
+    <RsiObject ObjTypeId="39" ObjType="Limit" ObjId="Limit_Z">
+      <Inputs>
+        <Input InIdx="0" OutObjId="ETHERNET1" OutIdx="2"
+               SignalName="ETHERNET1|Out3 RKorr.Z" />
+      </Inputs>
+      <Parameters>
+        <Parameter Name="LowerLimit" ParamId="0" ParamValue="-5" />
+        <Parameter Name="UpperLimit" ParamId="1" ParamValue="5" />
+      </Parameters>
+    </RsiObject>
+    <RsiObject ObjTypeId="39" ObjType="Limit" ObjId="Limit_A">
+      <Inputs>
+        <Input InIdx="0" OutObjId="ETHERNET1" OutIdx="3"
+               SignalName="ETHERNET1|Out4 RKorr.A" />
+      </Inputs>
+      <Parameters>
+        <Parameter Name="LowerLimit" ParamId="0" ParamValue="-5" />
+        <Parameter Name="UpperLimit" ParamId="1" ParamValue="5" />
+      </Parameters>
+    </RsiObject>
+    <RsiObject ObjTypeId="39" ObjType="Limit" ObjId="Limit_B">
+      <Inputs>
+        <Input InIdx="0" OutObjId="ETHERNET1" OutIdx="4"
+               SignalName="ETHERNET1|Out5 RKorr.B" />
+      </Inputs>
+      <Parameters>
+        <Parameter Name="LowerLimit" ParamId="0" ParamValue="-5" />
+        <Parameter Name="UpperLimit" ParamId="1" ParamValue="5" />
+      </Parameters>
+    </RsiObject>
+    <RsiObject ObjTypeId="39" ObjType="Limit" ObjId="Limit_C">
+      <Inputs>
+        <Input InIdx="0" OutObjId="ETHERNET1" OutIdx="5"
+               SignalName="ETHERNET1|Out6 RKorr.C" />
+      </Inputs>
+      <Parameters>
+        <Parameter Name="LowerLimit" ParamId="0" ParamValue="-5" />
+        <Parameter Name="UpperLimit" ParamId="1" ParamValue="5" />
+      </Parameters>
+    </RsiObject>
+
+    <RsiObject ObjTypeId="27" ObjType="PosCorr" ObjId="PosCorr_BASE">
+      <Inputs>
+        <Input InIdx="0" OutObjId="Limit_X" OutIdx="0"
+               SignalName="Limit_X|Out RKorr.X" />
+        <Input InIdx="1" OutObjId="Limit_Y" OutIdx="0"
+               SignalName="Limit_Y|Out RKorr.Y" />
+        <Input InIdx="2" OutObjId="Limit_Z" OutIdx="0"
+               SignalName="Limit_Z|Out RKorr.Z" />
+        <Input InIdx="3" OutObjId="Limit_A" OutIdx="0"
+               SignalName="Limit_A|Out RKorr.A" />
+        <Input InIdx="4" OutObjId="Limit_B" OutIdx="0"
+               SignalName="Limit_B|Out RKorr.B" />
+        <Input InIdx="5" OutObjId="Limit_C" OutIdx="0"
+               SignalName="Limit_C|Out RKorr.C" />
+      </Inputs>
+      <Parameters>
+        <Parameter IsPublic="true" Name="LowerLimX" ParamId="0"
+                   ParamValue="-5" />
+        <Parameter IsPublic="true" Name="LowerLimY" ParamId="1"
+                   ParamValue="-5" />
+        <Parameter IsPublic="true" Name="LowerLimZ" ParamId="2"
+                   ParamValue="-5" />
+        <Parameter IsPublic="true" Name="UpperLimX" ParamId="3"
+                   ParamValue="5" />
+        <Parameter IsPublic="true" Name="UpperLimY" ParamId="4"
+                   ParamValue="5" />
+        <Parameter IsPublic="true" Name="UpperLimZ" ParamId="5"
+                   ParamValue="5" />
+        <Parameter IsPublic="true" Name="MaxRotAngle" ParamId="6"
+                   ParamValue="5" />
+        <Parameter Name="CorrectionCoordinateSystem" ParamId="100"
+                   ParamValue="BASE" />
+      </Parameters>
+    </RsiObject>
+
+    <RsiObject ObjTypeId="18" ObjType="Stop" ObjId="Stop_ExitMoveCorr">
+      <Inputs>
+        <Input InIdx="0" OutObjId="ETHERNET1" OutIdx="6"
+               SignalName="ETHERNET1|Out7 Stop.S" />
+      </Inputs>
+      <Parameters>
+        <Parameter Name="Mode" ParamId="0" ParamValue="4" />
+        <Parameter Name="Channel" ParamId="1" ParamValue="0" />
+      </Parameters>
+    </RsiObject>
+
+    <RsiObject ObjTypeId="85" ObjType="Input" ObjId="Watchdog_W">
+      <Inputs>
+        <Input InIdx="0" OutObjId="ETHERNET1" OutIdx="7"
+               SignalName="ETHERNET1|Out8 Watchdog.W" />
+      </Inputs>
+      <Parameters>
+        <Parameter Name="Index" ParamId="0" ParamValue="1" />
+        <Parameter Name="DataType" ParamId="1" ParamValue="3" />
+      </Parameters>
+    </RsiObject>
+  </RsiObjects>
+
+  <BlueprintCollections SchemaVersion="2.0.0" xmlns="RsiBlueprint">
+    <BlueprintCollection Name="RSI" Version="3.1.0">
+      <Subset Name="Communication">
+        <Element Name="Ethernet" Id="64" />
+        <Element Name="Input" Id="85" />
+      </Subset>
+      <Subset Name="Correction">
+        <Element Name="Limit" Id="39" />
+        <Element Name="PosCorr" Id="27" />
+        <Element Name="Stop" Id="18" />
+      </Subset>
+    </BlueprintCollection>
+  </BlueprintCollections>
+
+  <Constructs xmlns="RsiConstruct">
+    <Construct Name="ETHERNET1" BlueprintName="Ethernet"
+               BlueprintCollection="RSI" Location="0,0">
+      <Parameters>
+        <StringParameter Name="ConfigFile" Value="ROS_RSI_ETHERNET.xml" />
+        <IntParameter Name="Timeout" Value="100" />
+        <IntParameter Name="Flag" Value="1" />
+        <IntParameter Name="Precision" Value="4" />
+      </Parameters>
+    </Construct>
+    <Construct Name="Limit_X" BlueprintName="Limit" BlueprintCollection="RSI"
+               Location="300,0" />
+    <Construct Name="Limit_Y" BlueprintName="Limit" BlueprintCollection="RSI"
+               Location="300,90" />
+    <Construct Name="Limit_Z" BlueprintName="Limit" BlueprintCollection="RSI"
+               Location="300,180" />
+    <Construct Name="Limit_A" BlueprintName="Limit" BlueprintCollection="RSI"
+               Location="300,270" />
+    <Construct Name="Limit_B" BlueprintName="Limit" BlueprintCollection="RSI"
+               Location="300,360" />
+    <Construct Name="Limit_C" BlueprintName="Limit" BlueprintCollection="RSI"
+               Location="300,450" />
+    <Construct Name="PosCorr_BASE" BlueprintName="PosCorr"
+               BlueprintCollection="RSI" Location="650,160" />
+    <Construct Name="Stop_ExitMoveCorr" BlueprintName="Stop"
+               BlueprintCollection="RSI" Location="650,0" />
+    <Construct Name="Watchdog_W" BlueprintName="Input"
+               BlueprintCollection="RSI" Location="650,520" />
+  </Constructs>
+</RsiContext>
